@@ -24,7 +24,11 @@
         sdImage = self.nixosConfigurations.mailbox-pi.config.system.build.sdImage;
       };
 
-      packages.aarch64-linux.default = dash-chat.packages.aarch64-linux.replicating-local-mailbox-server;
+      packages.aarch64-linux = {
+        default = dash-chat.packages.aarch64-linux.replicating-local-mailbox-server;
+        # Same image, built natively on an aarch64 builder (e.g. CI's arm runner).
+        sdImage = self.nixosConfigurations.mailbox-pi.config.system.build.sdImage;
+      };
 
       nixosConfigurations.mailbox-pi = nixpkgs.lib.nixosSystem {
         system = "aarch64-linux";
