@@ -1,12 +1,19 @@
 # NixOS module: run local-mailbox-server as a system service, announced on the
 # LAN via its own in-process mDNS responder.
-{ config, lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 let
   cfg = config.services.dashchat-mailbox;
 in
 {
   options.services.dashchat-mailbox = {
-    enable = lib.mkEnableOption "Dash Chat LAN mailbox server" // { default = true; };
+    enable = lib.mkEnableOption "Dash Chat LAN mailbox server" // {
+      default = true;
+    };
 
     package = lib.mkOption {
       type = lib.types.package;
@@ -43,7 +50,7 @@ in
       };
       url = lib.mkOption {
         type = lib.types.str;
-        default = "https://mailbox.production.darksoil.studio";
+        default = "https://0-19.mailbox.staging.darksoil.studio";
         description = "Cloud/remote mailbox URL to bridge with when `cloud.enable` is set.";
       };
     };
@@ -56,7 +63,11 @@ in
 
     trustedInterfaces = lib.mkOption {
       type = lib.types.listOf lib.types.str;
-      default = [ "wlan0" "end0" "eth0" ];
+      default = [
+        "wlan0"
+        "end0"
+        "eth0"
+      ];
       description = ''
         Interfaces treated as trusted LAN. iroh blob transfer uses QUIC over UDP
         on a dynamic port, so peers need unrestricted UDP to fetch blobs; trusting
@@ -73,14 +84,16 @@ in
       wants = [ "network-online.target" ];
 
       serviceConfig = {
-        ExecStart = lib.concatStringsSep " " ([
-          (lib.getExe cfg.package)
-          "--db-path /var/lib/dashchat-mailbox/mailbox.redb"
-          "--addr ${lib.escapeShellArg cfg.addr}"
-          "--service-type ${lib.escapeShellArg cfg.serviceType}"
-          "--sync-interval ${toString cfg.syncInterval}"
-        ]
-        ++ lib.optional cfg.cloud.enable "--cloud-url ${lib.escapeShellArg cfg.cloud.url}");
+        ExecStart = lib.concatStringsSep " " (
+          [
+            (lib.getExe cfg.package)
+            "--db-path /var/lib/dashchat-mailbox/mailbox.redb"
+            "--addr ${lib.escapeShellArg cfg.addr}"
+            "--service-type ${lib.escapeShellArg cfg.serviceType}"
+            "--sync-interval ${toString cfg.syncInterval}"
+          ]
+          ++ lib.optional cfg.cloud.enable "--cloud-url ${lib.escapeShellArg cfg.cloud.url}"
+        );
 
         # Persistent state → stable server identity (MailboxId) across reboots.
         StateDirectory = "dashchat-mailbox";
