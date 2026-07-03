@@ -31,6 +31,8 @@
     cp ${pkgs.raspberrypifw}/share/raspberrypi/boot/bcm2712-rpi-5-b.dtb firmware/
     cp ${pkgs.raspberrypifw}/share/raspberrypi/boot/bcm2712d0-rpi-5-b.dtb firmware/
 
+    # The stock module cp's config.txt from the store, keeping it read-only.
+    chmod +w firmware/config.txt
     cat >> firmware/config.txt <<'EOF'
 
     [pi5]
