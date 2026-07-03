@@ -1,0 +1,56 @@
+## editors
+/.idea
+
+## system files
+.DS_Store
+
+## npm
+node_modules/
+/npm-debug.log
+
+## testing
+/coverage/
+
+## temp folders
+/.tmp/
+
+# build
+/_site/
+dist/
+/out-tsc/
+
+storybook-static
+*.tsbuildinfo
+
+# cargo
+/target/
+target
+
+# nix
+.direnv/
+.envrc
+result*
+
+# tauri
+src-tauri/gen/schemas/
+src-tauri/icons/Assets.car
+
+# push notifications
+src-tauri/gen/apple/build/
+**/*/google-services.json
+**/*/GoogleService-Info.plist
+service-account-key.json
+
+# Development environment database files
+*.redb
+.dbs
+.e2e-binaries
+signal-reference
+
+# Development environment log files
+*.log
+.do-image-*
+*.qcow2
+
+# Claude
+docs/superpowers

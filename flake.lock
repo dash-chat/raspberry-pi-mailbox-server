@@ -1,0 +1,114 @@
+{
+  "nodes": {
+    "crane": {
+      "locked": {
+        "lastModified": 1783030479,
+        "narHash": "sha256-h9URleVAoxoA8cpC09rG6N3/q8XkRqDZ6NMSkOkoRh0=",
+        "owner": "ipetkov",
+        "repo": "crane",
+        "rev": "339845ec5132ef749654058f4dd6c810dd44b6d2",
+        "type": "github"
+      },
+      "original": {
+        "owner": "ipetkov",
+        "repo": "crane",
+        "type": "github"
+      }
+    },
+    "dash-chat": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1783077637,
+        "narHash": "sha256-HL3sxWR3YP13Or4anTh6YP/9JmpRGmIjmvxGDvm8SzM=",
+        "owner": "dash-chat",
+        "repo": "dash-chat",
+        "rev": "19df7e9e12ee99f124e4a30cee208b1e7fab4b0f",
+        "type": "github"
+      },
+      "original": {
+        "owner": "dash-chat",
+        "ref": "feat/local-mailbox-server",
+        "repo": "dash-chat",
+        "type": "github"
+      }
+    },
+    "nixos-hardware": {
+      "inputs": {
+        "nixpkgs": "nixpkgs"
+      },
+      "locked": {
+        "lastModified": 1782562157,
+        "narHash": "sha256-a7+T6QSeowynwZ1ZJJbP8T8ntAytvrui8kFGJmIZt2c=",
+        "owner": "NixOS",
+        "repo": "nixos-hardware",
+        "rev": "a9cf7546a938c737b079e738de73934a13de9784",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "repo": "nixos-hardware",
+        "type": "github"
+      }
+    },
+    "nixpkgs": {
+      "locked": {
+        "lastModified": 1767892417,
+        "narHash": "sha256-8bW3q88CEg2u4hSP66Vf4lpbLonHz7hqDNBMcCY7E9U=",
+        "rev": "3497aa5c9457a9d88d71fa93a4a8368816fbeeba",
+        "type": "tarball",
+        "url": "https://releases.nixos.org/nixos/unstable/nixos-26.05pre924538.3497aa5c9457/nixexprs.tar.xz"
+      },
+      "original": {
+        "type": "tarball",
+        "url": "https://channels.nixos.org/nixos-unstable/nixexprs.tar.xz"
+      }
+    },
+    "nixpkgs_2": {
+      "locked": {
+        "lastModified": 1782723713,
+        "narHash": "sha256-oPXCU/SSUokcGaJREHibG1CBX3+s/W7orDWQOZDsEeQ=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "b5aa0fbd538984f6e3d201be0005b4463d8b09f8",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixos-unstable",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "root": {
+      "inputs": {
+        "crane": "crane",
+        "dash-chat": "dash-chat",
+        "nixos-hardware": "nixos-hardware",
+        "nixpkgs": "nixpkgs_2",
+        "rust-overlay": "rust-overlay"
+      }
+    },
+    "rust-overlay": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1783058364,
+        "narHash": "sha256-felUcVUtcdI15evRNkVfLq3opwceShhbrJt6hDlZvrk=",
+        "owner": "oxalica",
+        "repo": "rust-overlay",
+        "rev": "e7a078c7feb51f37955a832b22a96de5fccb1f7a",
+        "type": "github"
+      },
+      "original": {
+        "owner": "oxalica",
+        "repo": "rust-overlay",
+        "type": "github"
+      }
+    }
+  },
+  "root": "root",
+  "version": 7
+}
