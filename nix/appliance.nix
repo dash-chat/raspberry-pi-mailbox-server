@@ -151,12 +151,20 @@ in
       settings.PasswordAuthentication = lib.mkDefault true; # set false once you add a key
     };
 
+    # SSH is already reachable over the trusted LAN interfaces, but open 22
+    # explicitly so `ssh admin@<pi>` works regardless of which interface the
+    # appliance ends up administering itself over (e.g. a non-trusted uplink).
+    networking.firewall.allowedTCPPorts = [ 22 ];
+
     users.users.admin = {
       isNormalUser = true;
       extraGroups = [ "wheel" "networkmanager" ];
-      # Add your SSH public key here (or via the boot partition) and disable
-      # PasswordAuthentication above for a locked-down deployment.
-      openssh.authorizedKeys.keys = lib.mkDefault [ ];
+      # Baked-in admin key so we can SSH in to inspect the appliance. Add more
+      # keys here (or via the boot partition) and disable PasswordAuthentication
+      # above for a locked-down deployment.
+      openssh.authorizedKeys.keys = lib.mkDefault [
+        "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIO8DVpvRgQ90MyMyiuNdvyMNAio9n2o/+57MyhZS2A5A guillem.cordoba@gmail.com"
+      ];
       initialPassword = lib.mkDefault "dashchat";
     };
     security.sudo.wheelNeedsPassword = lib.mkDefault false;

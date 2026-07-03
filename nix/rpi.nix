@@ -2,15 +2,18 @@
 # boot files the stock sd-image-aarch64.nix doesn't provide for the Pi 5.
 { lib, pkgs, ... }:
 {
-  # Mainline kernel instead of nixos-hardware's Pi 5 default (the Raspberry Pi
-  # vendor kernel, which is compiled from source — many hours under aarch64
-  # binfmt emulation on the x86_64 builder). Mainline is Hydra-cached and
-  # covers everything this headless appliance needs on the Pi 5: RP1
-  # (Ethernet/USB), SD card, PCIe and the CYW43455 Wi-Fi.
-  boot.kernelPackages = pkgs.linuxPackages_latest;
+  # Use nixos-hardware's Pi 5 default kernel — the Raspberry Pi vendor kernel
+  # (linux-rpi) — rather than overriding it to mainline. Mainline is Hydra-cached
+  # and avoids a from-source kernel build, which is why it was chosen originally,
+  # but on this hardware it hung at boot (frozen at the U-Boot logo, i.e. the
+  # kernel never came up). The vendor tree is the best-supported Pi 5 boot path
+  # (RP1 Ethernet/USB, the SD/MMC controller, PCIe and the CYW43455 Wi-Fi are all
+  # covered), so we take it despite the cost: it compiles from source and isn't in
+  # the nixpkgs cache — build the image on an aarch64 machine/CI, not under x86_64
+  # binfmt emulation.
 
-  # The sd-image base profile enables ZFS, whose out-of-tree module doesn't
-  # build against the latest mainline kernel (and the appliance doesn't use it).
+  # The sd-image base profile enables ZFS; its out-of-tree module isn't used by
+  # this appliance and can fail to build against the kernel, so keep it off.
   boot.supportedFilesystems.zfs = lib.mkForce false;
 
   # nixos-hardware ships the Broadcom Wi-Fi/BT firmware in its Pi 4 module but

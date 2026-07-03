@@ -214,8 +214,10 @@ Then open the Dash Chat app on the LAN — it should auto-discover the mailbox.
 Stand up a second mailbox (another Pi, or a desktop running local-mailbox mode),
 send messages through one, and confirm the other converges.
 
-SSH in as `admin` (default password `dashchat` — change it / add a key in
-[`nix/appliance.nix`](nix/appliance.nix) and disable password auth).
+SSH in as `admin` — `ssh admin@<pi-ip>` (or `ssh admin@dashchat-mailbox.local`
+if mDNS resolves). A public key is baked in ([`nix/appliance.nix`](nix/appliance.nix));
+password auth (default `dashchat`) is still on as a fallback. Add your own key
+there and disable password auth for a locked-down deployment.
 
 ## Configuration
 
