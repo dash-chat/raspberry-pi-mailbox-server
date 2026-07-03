@@ -15,7 +15,8 @@
 
   # nixos-hardware ships the Broadcom Wi-Fi/BT firmware in its Pi 4 module but
   # not in its Pi 5 module. Without the NVRAM blobs brcmfmac never brings up
-  # wlan0 — and this appliance joins the mesh over Wi-Fi.
+  # wlan0 — which this appliance uses to host the mesh (mAP-less units) or to
+  # join a network as a client.
   hardware.firmware = [ pkgs.raspberrypiWirelessFirmware ];
 
   # The stock sd-image-aarch64.nix only knows Pi 3/4: its config.txt has no

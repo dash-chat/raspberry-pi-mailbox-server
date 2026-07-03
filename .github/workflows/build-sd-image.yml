@@ -1,0 +1,32 @@
+name: Build SD image
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The sdImage is an aarch64 build; emulate it on the x86_64 runner.
+      - uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            extra-platforms = aarch64-linux
+            system-features = nixos-test benchmark big-parallel kvm
+
+      - uses: cachix/cachix-action@v16
+        with:
+          name: darksoil-studio
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+
+      - name: Build sdImage
+        run: nix build .#sdImage --print-build-logs
