@@ -86,7 +86,7 @@ in
       serviceConfig = {
         ExecStart = lib.concatStringsSep " " (
           [
-            (lib.getExe cfg.package)
+            (lib.getExe' cfg.package "local-mailbox-server")
             "--db-path /var/lib/dashchat-mailbox/mailbox.redb"
             "--addr ${lib.escapeShellArg cfg.addr}"
             "--service-type ${lib.escapeShellArg cfg.serviceType}"

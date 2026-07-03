@@ -22,7 +22,10 @@ This repo is **just the NixOS image**. The Rust lives in a **dash-chat branch**
 `local-mailbox-server` binary is the `replicating-local-mailbox-server` crate's
 bin target, and the mDNS announce/browse logic is the shared
 `mailbox-mdns-discovery` crate (also used by the Dash Chat app, so it isn't
-duplicated). The flake crane-builds that binary and bakes it into the image.
+duplicated). The binary comes **prebuilt from the dash-chat flake**
+(`packages.replicating-local-mailbox-server`, defined next to the crate in
+`crates/replicating-local-mailbox-server/default.nix`) — this repo just bakes
+it into the image, with no build setup of its own.
 
 | Concern | Where (in the dash-chat branch) |
 | --- | --- |
@@ -33,8 +36,9 @@ duplicated). The flake crane-builds that binary and bakes it into the image.
 
 The daemon owns one `redb::Database` handle so the replication loop can read its
 watermarks from the same instance — redb allows only one opener per file. To
-develop the Rust, work in the dash-chat checkout and re-point / `nix flake update
-dash-chat` here.
+develop the Rust, work in the dash-chat checkout, push the branch, and `nix
+flake update dash-chat` here (or temporarily point the input at the checkout:
+`nix flake update dash-chat --override-input dash-chat path:../dash-chat6`).
 
 ### Replication scope
 
