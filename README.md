@@ -111,10 +111,10 @@ sudo dd if=mailbox.img of=/dev/sdX bs=4M conv=fsync status=progress
 ## Wi-Fi: mesh mode or plain client
 
 Each Pi comes up in one of two modes, chosen at boot by whether a
-**`mesh-wifi.env`** is present on the FAT **boot partition** (`/boot/firmware`
+**`wifi-ap.env`** is present on the FAT **boot partition** (`/boot/firmware`
 once running).
 
-**Mesh mode (`mesh-wifi.env` present).** The Pi *generates* a Wi-Fi network so
+**Mesh mode (`wifi-ap.env` present).** The Pi *generates* a Wi-Fi network so
 every Pi and phone lands on one LAN and auto-discovers each other. Declare it:
 
 ```sh
@@ -132,10 +132,10 @@ on the hardware:
 - **No mAP** — the Pi hosts the network itself on `wlan0` (AP mode, serving DHCP
   to connecting phones).
 
-Change the SSID/password by editing `mesh-wifi.env` and rebooting; a cabled mAP
+Change the SSID/password by editing `wifi-ap.env` and rebooting; a cabled mAP
 is re-provisioned onto the new network automatically.
 
-**Client mode (`mesh-wifi.env` absent).** No network is generated — the Pi just
+**Client mode (`wifi-ap.env` absent).** No network is generated — the Pi just
 joins an existing one like a normal device. Put its credentials in a
 **`wifi.env`** on the boot partition instead:
 
@@ -159,7 +159,7 @@ stays free. [`mikrotik/dashchat-map-lite.rsc`](mikrotik/dashchat-map-lite.rsc)
 provisions every unit identically:
 
 - **AP** broadcasting your mesh network (the `SSID`/`PASSWORD` from
-  `mesh-wifi.env`, defaulting to `dashchat`/`dashchat`) — the Pi and any phone
+  `wifi-ap.env`, defaulting to `dashchat`/`dashchat`) — the Pi and any phone
   running Dash Chat join it automatically.
 - **Dynamic WDS on a fixed channel**: any two units in range of each other
   automatically form WDS bridge links (same SSID + same channel is the trigger),
@@ -183,11 +183,11 @@ SSID/password injected) and applies it via a configuration reset. Stock RouterOS
 stays — only the configuration changes, same as setting it up by hand.
 
 Because it compares the unit's current network against the desired one, the
-service also **re-provisions on change**: edit `mesh-wifi.env`, reboot, and a
+service also **re-provisions on change**: edit `wifi-ap.env`, reboot, and a
 provisioned unit — now on its `10.x` mesh address, which the Pi derives from its
 own DHCP lease — is reset onto the new SSID/password. A unit already on the
 desired network is left alone, so the 5-minute timer never disrupts a healthy
-mesh. Without `mesh-wifi.env` (client mode) a cabled mAP is left untouched.
+mesh. Without `wifi-ap.env` (client mode) a cabled mAP is left untouched.
 
 Manual fallback (or to customize country `country=spain` or channel
 `frequency=2437` — all units must share SSID, password, and channel for the mesh

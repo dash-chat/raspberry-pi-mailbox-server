@@ -51,6 +51,7 @@ signal-reference
 *.log
 .do-image-*
 *.qcow2
+*.img
 
 # Claude
 docs/superpowers

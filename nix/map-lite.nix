@@ -26,7 +26,7 @@ in
       is detected over ethernet at its factory 192.168.88.1 — no credentials
       needed. The broadcast SSID/password come from `dashchat.wifi.{ssid,psk}`,
       overridable per card via `SSID=`/`PASSWORD=` in
-      `/boot/firmware/mesh-wifi.env` (whose presence also enables mesh mode;
+      `/boot/firmware/wifi-ap.env` (whose presence also enables mesh mode;
       without it a cabled mAP is left untouched).
     '';
   };
@@ -43,10 +43,10 @@ in
       script = ''
         set -eu
 
-        # Mesh mode is opt-in: with no declared mesh (/boot/firmware/mesh-wifi.env)
+        # Mesh mode is opt-in: with no declared mesh (/boot/firmware/wifi-ap.env)
         # the appliance is a plain Wi-Fi client (see appliance.nix), so leave any
         # cabled mAP untouched.
-        if [ ! -f /boot/firmware/mesh-wifi.env ]; then
+        if [ ! -f /boot/firmware/wifi-ap.env ]; then
           exit 0
         fi
 
@@ -91,13 +91,13 @@ in
         fi
 
         # Desired mesh network: baked-in default, overridable per card via
-        # /boot/firmware/mesh-wifi.env (SSID=… / PASSWORD=…) — the same file the
+        # /boot/firmware/wifi-ap.env (SSID=… / PASSWORD=…) — the same file the
         # Pi's wifi-provision reads, so the broadcast and joined networks match.
         MESH_SSID=${lib.escapeShellArg config.dashchat.wifi.ssid}
         MESH_PSK=${lib.escapeShellArg config.dashchat.wifi.psk}
-        if [ -f /boot/firmware/mesh-wifi.env ]; then
+        if [ -f /boot/firmware/wifi-ap.env ]; then
           # shellcheck disable=SC1091
-          . /boot/firmware/mesh-wifi.env
+          . /boot/firmware/wifi-ap.env
           MESH_SSID=''${SSID:-$MESH_SSID}
           MESH_PSK=''${PASSWORD:-$MESH_PSK}
         fi
@@ -115,7 +115,7 @@ in
 
         # Re-provision only when the unit isn't already on the desired network,
         # so the 5-minute timer doesn't reset a healthy unit in a loop. This also
-        # picks up a changed mesh-wifi.env after a reboot: new SSID/password ->
+        # picks up a changed wifi-ap.env after a reboot: new SSID/password ->
         # mismatch -> re-provision. A factory unit has no `dashchat` security
         # profile, so cur_psk reads empty and trips the mismatch (first provision).
         cur_ssid=$(rt ':put [/interface wireless get wlan1 ssid]' 2>/dev/null | tr -d '\r\n')

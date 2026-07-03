@@ -1,6 +1,6 @@
 # Appliance basics: hostname, Wi-Fi provisioning, headless SSH.
 #
-# Wi-Fi has two modes, chosen at boot by whether /boot/firmware/mesh-wifi.env
+# Wi-Fi has two modes, chosen at boot by whether /boot/firmware/wifi-ap.env
 # exists:
 #   * present -> "mesh mode": generate the declared network (SSID=/PASSWORD=,
 #     falling back to the baked-in defaults below). If a mAP lite is cabled to
@@ -21,7 +21,7 @@ in
       description = ''
         Default mesh Wi-Fi SSID — the network the mAP lite broadcasts (see
         map-lite.nix), or that a mAP-less Pi hosts itself, when a card opts into
-        mesh mode with a `/boot/firmware/mesh-wifi.env`. Used whenever that file
+        mesh mode with a `/boot/firmware/wifi-ap.env`. Used whenever that file
         leaves `SSID=` unset; override it there per card, or change this default
         for a private deployment.
       '';
@@ -31,7 +31,7 @@ in
       default = "dashchat"; # WPA2 requires 8-63 chars
       description = ''
         Default mesh Wi-Fi password matching `ssid`. Used whenever
-        `/boot/firmware/mesh-wifi.env` leaves `PASSWORD=` unset.
+        `/boot/firmware/wifi-ap.env` leaves `PASSWORD=` unset.
       '';
     };
     country = lib.mkOption {
@@ -51,7 +51,7 @@ in
     networking.networkmanager.enable = true;
 
     systemd.services.wifi-provision = {
-      description = "Provision Wi-Fi: mesh mode (mesh-wifi.env) hosts/rides the mesh, else client mode joins wifi.env";
+      description = "Provision Wi-Fi: mesh mode (wifi-ap.env) hosts/rides the mesh, else client mode joins wifi.env";
       after = [ "NetworkManager.service" ];
       wants = [ "NetworkManager.service" ];
       wantedBy = [ "multi-user.target" ];
@@ -109,13 +109,13 @@ in
         nmcli connection delete dashchat-net >/dev/null 2>&1 || true
         nmcli connection delete user-wifi    >/dev/null 2>&1 || true
 
-        if [ -f /boot/firmware/mesh-wifi.env ]; then
+        if [ -f /boot/firmware/wifi-ap.env ]; then
           # Mesh mode: generate the declared network. SSID=/PASSWORD= come from
           # the file; anything left unset falls back to the baked-in defaults.
           MESH_SSID=${lib.escapeShellArg cfg.ssid}
           MESH_PSK=${lib.escapeShellArg cfg.psk}
           # shellcheck disable=SC1091
-          . /boot/firmware/mesh-wifi.env
+          . /boot/firmware/wifi-ap.env
           MESH_SSID=''${SSID:-$MESH_SSID}
           MESH_PSK=''${PASSWORD:-$MESH_PSK}
 
