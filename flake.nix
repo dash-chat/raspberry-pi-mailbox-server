@@ -1,6 +1,13 @@
 {
   description = "Raspberry Pi NixOS image: Dash Chat LAN mailbox (mDNS announce/discovery + replication)";
 
+  nixConfig = {
+    extra-substituters = [ "https://dash-chat.cachix.org" ];
+    extra-trusted-public-keys = [
+      "dash-chat.cachix.org-1:oAsoaEZ7e4UJlveRXF45MJ1P+Tf3OKFN5QkB8BuPaiM="
+    ];
+  };
+
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     nixos-hardware.url = "github:NixOS/nixos-hardware";

@@ -17,8 +17,8 @@ jobs:
 
       - uses: cachix/cachix-action@v16
         with:
-          name: darksoil-studio
+          name: dash-chat
           authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
 
       - name: Build sdImage
-        run: nix build .#sdImage --print-build-logs
+        run: nix build .#sdImage --print-build-logs --accept-flake-config
