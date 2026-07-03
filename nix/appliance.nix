@@ -8,7 +8,7 @@
 #     same file) and bridges it in over the cable, so wlan0 stays free;
 #     otherwise this Pi hosts the mesh itself on wlan0 (AP mode).
 #   * absent -> "client mode": just join the network named in
-#     /boot/firmware/wifi.env (SSID=/PSK=) like a normal Wi-Fi device.
+#     /boot/firmware/wifi.env (SSID=/PASSWORD=) like a normal Wi-Fi device.
 { config, lib, pkgs, ... }:
 let
   cfg = config.dashchat.wifi;
@@ -134,11 +134,11 @@ in
           # Client mode: no mesh declared, so just join the given network like a
           # normal Wi-Fi device. Format:
           #   SSID=MyNetwork
-          #   PSK=mypassword
+          #   PASSWORD=mypassword
           # shellcheck disable=SC1091
           . /boot/firmware/wifi.env
-          if [ -n "''${SSID:-}" ] && [ -n "''${PSK:-}" ]; then
-            add_wifi user-wifi "$SSID" "$PSK" 20
+          if [ -n "''${SSID:-}" ] && [ -n "''${PASSWORD:-}" ]; then
+            add_wifi user-wifi "$SSID" "$PASSWORD" 20
             nmcli connection up user-wifi >/dev/null 2>&1 || true
           fi
         fi

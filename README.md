@@ -141,7 +141,7 @@ joins an existing one like a normal device. Put its credentials in a
 
 ```sh
 SSID=MyNetwork
-PSK=mywifipassword
+PASSWORD=mywifipassword
 ```
 
 Ethernet works out of the box with no configuration; two Pis on the same
