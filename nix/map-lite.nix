@@ -1,9 +1,9 @@
-# Zero-touch provisioning of a factory-default MikroTik mAP lite from the Pi:
-# on boot (and periodically) scan for the factory open `MikroTik-…` SSID, join
-# it, upload mikrotik/dashchat-map-lite.rsc over SFTP, and apply it via
-# `/system reset-configuration run-after-reset=…`. Stock RouterOS stays — only
-# its configuration changes. Once provisioned the factory SSID is gone, so the
-# service is a no-op on every later run.
+# Provisioning of a factory-default MikroTik mAP lite from the Pi: on boot
+# (and periodically) look for the unit's factory SSID (from `maplite.env` on
+# the boot partition), join it, upload mikrotik/dashchat-map-lite.rsc over
+# SFTP, and apply it via `/system reset-configuration run-after-reset=…`.
+# Stock RouterOS stays — only its configuration changes. Once provisioned the
+# factory SSID is gone, so the service is a no-op on every later run.
 #
 # Provisioning runs over wlan0 even though the Pi is wired to the mAP lite:
 # the factory config only allows admin access from the wireless side (ether1
@@ -19,11 +19,11 @@ in
     type = lib.types.bool;
     default = true;
     description = ''
-      Automatically provision any factory-default MikroTik mAP lite in Wi-Fi
-      range into a `dashchat` mesh AP (see mikrotik/dashchat-map-lite.rsc).
-      Factory units have a blank admin password; for units shipped with a
-      sticker password, drop `PASSWORD=…` into `maplite.env` on the boot
-      partition.
+      Automatically provision the paired factory-default MikroTik mAP lite
+      into a `dashchat` mesh AP (see mikrotik/dashchat-map-lite.rsc). The
+      unit is identified by a `maplite.env` on the boot partition holding
+      `SSID=…` (its factory network name) and, for units shipped with a
+      sticker password, `PASSWORD=…`. Without that file nothing is touched.
     '';
   };
 
@@ -40,27 +40,34 @@ in
         set -eu
 
         ROUTER=192.168.88.1
+        # HostKeyAlgorithms=+ssh-rsa: RouterOS 6 units only offer a SHA-1 RSA
+        # host key, which modern OpenSSH rejects by default.
         SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-          -o ConnectTimeout=10 -o PubkeyAuthentication=no -o PreferredAuthentications=password"
+          -o ConnectTimeout=10 -o PubkeyAuthentication=no -o PreferredAuthentications=password \
+          -o HostKeyAlgorithms=+ssh-rsa"
+        SSID=""
         PASSWORD=""
         if [ -f /boot/firmware/maplite.env ]; then
           # shellcheck disable=SC1091
           . /boot/firmware/maplite.env
         fi
-
-        # Factory-default units broadcast an open MikroTik-XXXXXX network.
-        ssid=$(nmcli -t -f SSID,SECURITY dev wifi list ifname wlan0 --rescan yes \
-          | awk -F: '$1 ~ /^MikroTik/ && ($2 == "" || $2 == "--") { print $1; exit }')
-        if [ -z "$ssid" ]; then
+        if [ -z "$SSID" ]; then
+          echo "no SSID in /boot/firmware/maplite.env; nothing to provision"
           exit 0
         fi
-        echo "Found factory mAP lite network $ssid; provisioning"
+
+        # The factory network (open, MikroTik-XXXXXX) disappears once the unit
+        # is provisioned; quietly wait for the next run while it is not around.
+        if ! nmcli -t -f SSID dev wifi list ifname wlan0 --rescan yes | grep -qxF "$SSID"; then
+          exit 0
+        fi
+        echo "Found factory mAP lite network $SSID; provisioning"
 
         cleanup() { nmcli connection delete maplite-setup >/dev/null 2>&1 || true; }
         trap cleanup EXIT
         cleanup
         nmcli connection add type wifi con-name maplite-setup ifname wlan0 \
-          ssid "$ssid" connection.autoconnect no >/dev/null
+          ssid "$SSID" connection.autoconnect no >/dev/null
         nmcli connection up maplite-setup >/dev/null
 
         for _ in $(seq 30); do

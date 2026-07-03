@@ -160,16 +160,31 @@ provisions every unit identically:
   disjoint addresses within one /8. No gateway/DNS is advertised — the LAN is
   offline-first and phones keep using mobile data for internet.
 
-**Zero-touch: flashing the Pi is all you do.** The image ships a
-`map-lite-provision` service ([`nix/map-lite.nix`](nix/map-lite.nix)) that runs
-on boot and every 5 minutes: if it sees a **factory-default** mAP lite (the
-open `MikroTik-…` SSID it broadcasts out of the box), it joins that network,
-uploads the `.rsc`, and applies it via a configuration reset. Stock RouterOS
-stays — only the configuration changes, same as setting it up by hand. Once
-provisioned, the factory SSID is gone and the service does nothing. Units that
-ship with a sticker admin password need `PASSWORD=…` in a **`maplite.env`** on
-the Pi's boot partition (older mAP lites ship with a blank password and work
-as-is).
+**The Pi provisions its own mAP lite.** The image ships a `map-lite-provision`
+service ([`nix/map-lite.nix`](nix/map-lite.nix)) that runs on boot and every 5
+minutes: it joins the paired unit's **factory** network (the open `MikroTik-…`
+SSID it broadcasts out of the box), uploads the `.rsc`, and applies it via a
+configuration reset. Stock RouterOS stays — only the configuration changes,
+same as setting it up by hand. Once provisioned, the factory SSID is gone and
+the service does nothing.
+
+The pairing comes from a **`maplite.env`** on the SD card's FAT boot partition
+(mount it after flashing, drop the file): the unit's factory SSID, and — for
+units that ship with a per-device sticker password — its admin password
+(units with a blank factory password can omit it):
+
+```sh
+SSID=MikroTik-AB12CD
+PASSWORD=AB12CD34
+```
+
+Without `maplite.env` the service touches nothing.
+
+Note rpi-imager's own Wi-Fi/password customization fields **cannot** carry
+these: the imager writes only hashes to the card (the user password as a crypt
+hash, the Wi-Fi passphrase as a derived PSK), and its `firstrun.sh` mechanism
+is Raspberry Pi OS-only anyway — the MikroTik login needs the plaintext, so it
+travels via `maplite.env`.
 
 Manual fallback (or to customize country `country=spain`, channel
 `frequency=2437`, or credentials — all units must share SSID, password, and
