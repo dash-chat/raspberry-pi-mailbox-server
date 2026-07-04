@@ -453,7 +453,11 @@
     "root": {
       "inputs": {
         "dash-chat": "dash-chat",
-        "nixos-raspberrypi": "nixos-raspberrypi"
+        "nixos-raspberrypi": "nixos-raspberrypi",
+        "nixpkgs": [
+          "nixos-raspberrypi",
+          "nixpkgs"
+        ]
       }
     },
     "rust-overlay": {

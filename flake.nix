@@ -21,6 +21,10 @@
     nixos-raspberrypi.url = "github:nvmd/nixos-raspberrypi/main";
 
     dash-chat.url = "github:dash-chat/dash-chat/feat/local-mailbox-server";
+
+    # Reuse the nixpkgs nixos-raspberrypi already pins (no extra download); used
+    # only for the devShell tooling.
+    nixpkgs.follows = "nixos-raspberrypi/nixpkgs";
   };
 
   outputs =
@@ -28,9 +32,19 @@
       self,
       nixos-raspberrypi,
       dash-chat,
+      nixpkgs,
       ...
     }:
     {
+      # Dev tooling (e.g. `just` for the flashing recipes). Enter with
+      # `nix develop`.
+      devShells.x86_64-linux.default = nixpkgs.legacyPackages.x86_64-linux.mkShell {
+        packages = with nixpkgs.legacyPackages.x86_64-linux; [
+          just # flashing recipes
+          zstd # decompress the built .img.zst
+        ];
+      };
+
       packages.x86_64-linux = {
         default = dash-chat.packages.x86_64-linux.replicating-local-mailbox-server;
         # The flashable Raspberry Pi SD image. Built for aarch64; on an x86_64
