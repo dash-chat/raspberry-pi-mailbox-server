@@ -174,21 +174,43 @@ provisions every unit identically:
   disjoint addresses within one /8. No gateway/DNS is advertised — the LAN is
   offline-first and phones keep using mobile data for internet.
 
-**The Pi provisions its own mAP lite — over the cable, no credentials.** The
-image ships a `map-lite-provision` service ([`nix/map-lite.nix`](nix/map-lite.nix))
-that runs on boot and every 5 minutes. A factory-default unit bridges `ether1`
-into its LAN and serves DHCP there, so the wired Pi gets a `192.168.88.x` lease
-and reaches the router at `192.168.88.1` directly — no Wi-Fi, SSID, or password
-(factory admin is passwordless). The service uploads the `.rsc` (with your mesh
-SSID/password injected) and applies it via a configuration reset. Stock RouterOS
-stays — only the configuration changes, same as setting it up by hand.
+**The Pi adopts its own mAP lite — over the unit's factory Wi-Fi.** A
+factory-default mAP lite ships with its single ethernet port as a firewalled
+WAN, so it can't be reached over the cable; the only way in is its factory
+Wi-Fi. The image ships a `map-lite-provision` service
+([`nix/map-lite.nix`](nix/map-lite.nix)) that runs on boot and every 5 minutes:
+when a mAP is cabled in (live carrier) and still broadcasting its factory
+network, the Pi briefly borrows `wlan0` to join `MikroTik-XXXXXX`, reaches the
+router at its LAN address `192.168.88.1`, uploads the `.rsc` (with your mesh
+SSID/password injected), and applies it via a configuration reset. Stock
+RouterOS stays — only the configuration changes, same as setting it up by hand.
+`wlan0` is handed straight back, and once the unit reboots onto the mesh the Pi
+rides it over the cable as before.
 
-Because it compares the unit's current network against the desired one, the
-service also **re-provisions on change**: edit `wifi-ap.env`, reboot, and a
-provisioned unit — now on its `10.x` mesh address, which the Pi derives from its
-own DHCP lease — is reset onto the new SSID/password. A unit already on the
-desired network is left alone, so the 5-minute timer never disrupts a healthy
-mesh. Without `wifi-ap.env` (client mode) a cabled mAP is left untouched.
+Newer mAP lites are password-protected — a per-device Wi-Fi + admin password
+printed on the sticker — so adoption needs those credentials. Put them in a
+**`map-lite.env`** on the boot partition alongside `wifi-ap.env`:
+
+```sh
+FACTORY_SSID=MikroTik-DD8705
+FACTORY_WIFI_PASSWORD=the-sticker-wifi-key
+FACTORY_ADMIN_PASSWORD=the-sticker-login-password
+```
+
+`FACTORY_SSID` is the factory network name (`MikroTik-` + the last six of the
+unit's MAC, also on the sticker). The sticker may print one shared value or a
+separate Wi-Fi key and login password — set both fields accordingly.
+`FACTORY_ADMIN_PASSWORD` may be omitted only when it equals the Wi-Fi key (it
+defaults to it). Without both `map-lite.env` and `wifi-ap.env`, a cabled mAP is
+left untouched.
+
+Adoption is one-way: a provisioned unit stops broadcasting its factory Wi-Fi
+(coming up on the mesh instead), so the service simply finds nothing to adopt on
+every later run and the 5-minute timer never disturbs a healthy mesh. To move a
+unit onto a different mesh network later, factory-reset it (hold the button
+during power-up until the green LED starts flashing, then release — or `/system
+reset-configuration` if you can log in) so it broadcasts `MikroTik-XXXXXX`
+again, adjust the env files, and the Pi re-adopts it.
 
 Manual fallback (or to customize country `country=spain` or channel
 `frequency=2437` — all units must share SSID, password, and channel for the mesh

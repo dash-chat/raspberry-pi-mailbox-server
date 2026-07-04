@@ -122,7 +122,10 @@ in
           if ethernet_link; then
             # A mAP lite is cabled in: it broadcasts the mesh (provisioned by
             # map-lite.nix) and bridges it in over ethernet, so the Pi is already
-            # on the network — nothing to host on wlan0.
+            # on the network — nothing to host on wlan0. Leaving wlan0 idle also
+            # lets map-lite-provision borrow it to adopt a still-factory unit
+            # over that unit's Wi-Fi (a factory mAP can't be reached over the
+            # cable), then hand it straight back.
             :
           else
             # No mAP: host the mesh on this Pi so phones (and a directly-cabled
