@@ -82,14 +82,15 @@ enough to power a USB device like the MikroTik mAP lite from the Pi.
 
 ## Hardware support / building the image
 
-The image targets the **Raspberry Pi 5**. The stock `sd-image-aarch64` base only
-ships Pi 3/4 boot files, so [`nix/rpi.nix`](nix/rpi.nix) adds what the Pi 5's
-EEPROM bootloader needs: the bcm2712 device trees, a Pi 5-capable U-Boot
-(`rpi_arm64`) chained via a `[pi5]` `config.txt` stanza, plus the CYW43455
-Wi-Fi firmware. It runs the Hydra-cached mainline kernel instead of
-nixos-hardware's from-source Raspberry Pi vendor kernel, so building the image
-doesn't compile a kernel under emulation. Pi 3/4 would still boot the image via
-the stock base's own boot files, but the Pi 5 is the supported target.
+The image targets the **Raspberry Pi 5** and is built with the
+[`nixos-raspberrypi`](https://github.com/nvmd/nixos-raspberrypi) flake, the
+community-standard way to run NixOS on Raspberry Pi. It provides the Pi 5 boot
+path — the Raspberry Pi vendor kernel (`linux-rpi`) with matched firmware and
+device trees, declarative `config.txt`, and the generational bootloader — so
+[`nix/rpi.nix`](nix/rpi.nix) only carries appliance-specific tweaks (the CYW43455
+Wi-Fi firmware and the `[pi5]` `usb_max_current_enable`). The vendor kernel and
+firmware are served prebuilt from the `nixos-raspberrypi.cachix.org` binary
+cache, so building the image doesn't compile a kernel from source.
 
 > Cross note: the image is `aarch64-linux`. On an `x86_64` builder you need qemu
 > binfmt emulation enabled (NixOS: `boot.binfmt.emulatedSystems = [ "aarch64-linux" ];`),

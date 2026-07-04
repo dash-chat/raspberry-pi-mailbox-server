@@ -2,15 +2,23 @@
   description = "Raspberry Pi NixOS image: Dash Chat LAN mailbox (mDNS announce/discovery + replication)";
 
   nixConfig = {
-    extra-substituters = [ "https://dash-chat.cachix.org" ];
+    extra-substituters = [
+      "https://dash-chat.cachix.org"
+      # Prebuilt vendor kernel/firmware/packages, so CI doesn't compile the
+      # Raspberry Pi kernel from source on every build.
+      "https://nixos-raspberrypi.cachix.org"
+    ];
     extra-trusted-public-keys = [
       "dash-chat.cachix.org-1:oAsoaEZ7e4UJlveRXF45MJ1P+Tf3OKFN5QkB8BuPaiM="
+      "nixos-raspberrypi.cachix.org-1:4iMO9LXa8BqhU+Rpg6LQKiGa2lsNh/j2oiYLNOQ5sPI="
     ];
   };
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    nixos-hardware.url = "github:NixOS/nixos-hardware";
+    # nixos-raspberrypi owns the Pi 5 boot path: vendor kernel (linux-rpi) with
+    # matched firmware/DTBs, declarative config.txt, and the generational
+    # bootloader. It pins its own nixpkgs, which the system is built against.
+    nixos-raspberrypi.url = "github:nvmd/nixos-raspberrypi/main";
 
     dash-chat.url = "github:dash-chat/dash-chat/feat/local-mailbox-server";
   };
@@ -18,8 +26,7 @@
   outputs =
     {
       self,
-      nixpkgs,
-      nixos-hardware,
+      nixos-raspberrypi,
       dash-chat,
       ...
     }:
@@ -37,11 +44,25 @@
         sdImage = self.nixosConfigurations.mailbox-pi.config.system.build.sdImage;
       };
 
-      nixosConfigurations.mailbox-pi = nixpkgs.lib.nixosSystem {
-        system = "aarch64-linux";
+      # `nixos-raspberrypi.lib.nixosSystem` is a drop-in for
+      # `nixpkgs.lib.nixosSystem`: it pins `nixpkgs.hostPlatform = aarch64-linux`,
+      # injects the vendor kernel/firmware overlays, trusts the binary cache, and
+      # passes `nixos-raspberrypi` to the modules via specialArgs.
+      nixosConfigurations.mailbox-pi = nixos-raspberrypi.lib.nixosSystem {
         modules = [
-          nixos-hardware.nixosModules.raspberry-pi-5
-          "${nixpkgs}/nixos/modules/installer/sd-card/sd-image-aarch64.nix"
+          {
+            imports = with nixos-raspberrypi.nixosModules; [
+              # Pi 5 board support: vendor kernel + matched firmware/DTBs, and
+              # the config.txt / generational bootloader plumbing.
+              raspberry-pi-5.base
+              # Fixes/optimisations for the default rpi5 kernel's 16k page size.
+              raspberry-pi-5.page-size-16k
+              # Builds `config.system.build.sdImage`; also disables nixpkgs'
+              # all-hardware profile (whose stray initrd modules break the
+              # vendor kernel) and selects the generational bootloader for RPi5.
+              sd-image
+            ];
+          }
           ./nix/nixos-module.nix
           ./nix/appliance.nix
           ./nix/map-lite.nix
