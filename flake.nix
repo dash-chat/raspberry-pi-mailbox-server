@@ -20,7 +20,7 @@
     # bootloader. It pins its own nixpkgs, which the system is built against.
     nixos-raspberrypi.url = "github:nvmd/nixos-raspberrypi/main";
 
-    dash-chat.url = "github:dash-chat/dash-chat/feat/local-mailbox-server";
+    dash-chat.url = "github:dash-chat/dash-chat/replicating-local-mailbox-server";
 
     # Reuse the nixpkgs nixos-raspberrypi already pins (no extra download); used
     # only for the devShell tooling.
