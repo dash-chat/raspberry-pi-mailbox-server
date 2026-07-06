@@ -1,0 +1,4 @@
+# esbuild's postinstall just verifies/installs its platform binary; allow it so
+# `pnpm install` works non-interactively (pnpm blocks build scripts by default).
+allowBuilds:
+  esbuild: true

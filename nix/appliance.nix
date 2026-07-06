@@ -40,6 +40,15 @@ in
       default = "ES";
       description = "Wi-Fi regulatory country code.";
     };
+    apAddress = lib.mkOption {
+      type = lib.types.str;
+      default = "10.42.0.1";
+      description = ''
+        IPv4 address the Pi takes on wlan0 when hosting the mesh (AP mode).
+        Pinned (rather than NetworkManager's shared-mode default) so the
+        captive portal's nginx/DNS config can reference it deterministically.
+      '';
+    };
   };
 
   config = {
@@ -86,6 +95,7 @@ in
             wifi-sec.key-mgmt wpa-psk \
             wifi-sec.psk "$psk" \
             ipv4.method shared \
+            ipv4.addresses ${lib.escapeShellArg cfg.apAddress}/24 \
             connection.autoconnect yes \
             connection.autoconnect-priority 10
         }
