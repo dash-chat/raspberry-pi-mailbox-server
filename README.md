@@ -127,14 +127,14 @@ Either line may be omitted to use the baked-in `dashchat.wifi.{ssid,psk}`
 defaults ([`nix/appliance.nix`](nix/appliance.nix)). How it's broadcast depends
 on the hardware:
 
-- **A mAP lite cabled to ethernet** broadcasts it (the Pi provisions the unit —
-  see below) and bridges it in over the cable, so the Pi rides the mesh over
-  ethernet and `wlan0` stays free.
-- **No mAP** — the Pi hosts the network itself on `wlan0` (AP mode, serving DHCP
-  to connecting phones).
+- **An access point cabled to ethernet** (e.g. a MikroTik mAP lite — provisioned
+  from its own repo, not this image) broadcasts it. The Pi detects the cable and
+  does **not** host anything: it joins the mesh as a normal Wi-Fi client on
+  `wlan0`.
+- **No access point cabled in** — the Pi hosts the network itself on `wlan0`
+  (AP mode, serving DHCP to connecting phones).
 
-Change the SSID/password by editing `wifi-ap.env` and rebooting; a cabled mAP
-is re-provisioned onto the new network automatically.
+Change the SSID/password by editing `wifi-ap.env` and rebooting.
 
 **Client mode (`wifi-ap.env` absent).** No network is generated — the Pi just
 joins an existing one like a normal device. Put its credentials in a
@@ -147,81 +147,6 @@ PASSWORD=mywifipassword
 
 Ethernet works out of the box with no configuration; two Pis on the same
 switch/router also discover and sync.
-
-## MikroTik mAP lite: auto-meshing access points
-
-In **mesh mode** each Pi can be paired with a **mAP lite**: powered from the
-Pi's USB port (see
-[Powering peripherals](#powering-peripherals-eg-the-map-lite-over-usb)) and
-**wired to it over ethernet** (mAP `ether1` ↔ Pi ethernet). The provisioned
-config bridges `ether1` into the mesh LAN, so the Pi's wired port sits directly
-on the merged network — the cable carries all mailbox traffic and the Pi's Wi-Fi
-stays free. [`mikrotik/dashchat-map-lite.rsc`](mikrotik/dashchat-map-lite.rsc)
-provisions every unit identically:
-
-- **AP** broadcasting your mesh network (the `SSID`/`PASSWORD` from
-  `wifi-ap.env`, defaulting to `dashchat`/`dashchat`) — the Pi and any phone
-  running Dash Chat join it automatically.
-- **Dynamic WDS on a fixed channel**: any two units in range of each other
-  automatically form WDS bridge links (same SSID + same channel is the trigger),
-  merging their LANs into **one L2 network** — so bringing two kiosks near each
-  other is all it takes for their mailboxes to discover each other over mDNS
-  and start replicating. RSTP on the bridge breaks the loops a full mesh of
-  three or more units creates.
-- **Collision-free DHCP**: each unit self-assigns `10.<B5>.<B6>.1/8` and serves
-  leases from its own `10.<B5>.<B6>.x` range (B5/B6 = last two bytes of its
-  wireless MAC), so the coexisting DHCP servers on a merged mesh hand out
-  disjoint addresses within one /8. No gateway/DNS is advertised — the LAN is
-  offline-first and phones keep using mobile data for internet.
-
-**The Pi adopts its own mAP lite — over the unit's factory Wi-Fi.** A
-factory-default mAP lite ships with its single ethernet port as a firewalled
-WAN, so it can't be reached over the cable; the only way in is its factory
-Wi-Fi. The image ships a `map-lite-provision` service
-([`nix/map-lite.nix`](nix/map-lite.nix)) that runs on boot and every 5 minutes:
-when a mAP is cabled in (live carrier) and still broadcasting its factory
-network, the Pi briefly borrows `wlan0` to join `MikroTik-XXXXXX`, reaches the
-router at its LAN address `192.168.88.1`, uploads the `.rsc` (with your mesh
-SSID/password injected), and applies it via a configuration reset. Stock
-RouterOS stays — only the configuration changes, same as setting it up by hand.
-`wlan0` is handed straight back, and once the unit reboots onto the mesh the Pi
-rides it over the cable as before.
-
-Newer mAP lites are password-protected — a per-device Wi-Fi + admin password
-printed on the sticker — so adoption needs those credentials. Put them in a
-**`map-lite.env`** on the boot partition alongside `wifi-ap.env`:
-
-```sh
-FACTORY_SSID=MikroTik-DD8705
-FACTORY_WIFI_PASSWORD=the-sticker-wifi-key
-FACTORY_ADMIN_PASSWORD=the-sticker-login-password
-```
-
-`FACTORY_SSID` is the factory network name (`MikroTik-` + the last six of the
-unit's MAC, also on the sticker). The sticker may print one shared value or a
-separate Wi-Fi key and login password — set both fields accordingly.
-`FACTORY_ADMIN_PASSWORD` may be omitted only when it equals the Wi-Fi key (it
-defaults to it). Without both `map-lite.env` and `wifi-ap.env`, a cabled mAP is
-left untouched.
-
-Adoption is one-way: a provisioned unit stops broadcasting its factory Wi-Fi
-(coming up on the mesh instead), so the service simply finds nothing to adopt on
-every later run and the 5-minute timer never disturbs a healthy mesh. To move a
-unit onto a different mesh network later, factory-reset it (hold the button
-during power-up until the green LED starts flashing, then release — or `/system
-reset-configuration` if you can log in) so it broadcasts `MikroTik-XXXXXX`
-again, adjust the env files, and the Pi re-adopts it.
-
-Manual fallback (or to customize country `country=spain` or channel
-`frequency=2437` — all units must share SSID, password, and channel for the mesh
-to form): reset the unit (`/system reset-configuration no-defaults=yes
-skip-backup=yes`), upload the `.rsc` via WinBox/Files, and import it, optionally
-setting the network first:
-
-```
-:global meshssid "mynet"; :global meshpsk "mypassword"
-/import dashchat-map-lite.rsc
-```
 
 ## Verifying
 

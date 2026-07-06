@@ -2,11 +2,12 @@
 #
 # Wi-Fi has two modes, chosen at boot by whether /boot/firmware/wifi-ap.env
 # exists:
-#   * present -> "mesh mode": generate the declared network (SSID=/PASSWORD=,
-#     falling back to the baked-in defaults below). If a mAP lite is cabled to
-#     ethernet it broadcasts the mesh (provisioned by map-lite.nix, reading the
-#     same file) and bridges it in over the cable, so wlan0 stays free;
-#     otherwise this Pi hosts the mesh itself on wlan0 (AP mode).
+#   * present -> "mesh mode": the declared network (SSID=/PASSWORD=, falling
+#     back to the baked-in defaults below) must exist. If ethernet is cabled to
+#     a Wi-Fi access point broadcasting it (e.g. a MikroTik mAP lite,
+#     provisioned in its own repo), the Pi does NOT host anything — it joins
+#     that network as a client on wlan0; otherwise this Pi hosts the mesh
+#     itself on wlan0 (AP mode).
 #   * absent -> "client mode": just join the network named in
 #     /boot/firmware/wifi.env (SSID=/PASSWORD=) like a normal Wi-Fi device.
 { config, lib, pkgs, ... }:
@@ -19,11 +20,11 @@ in
       type = lib.types.str;
       default = "dashchat";
       description = ''
-        Default mesh Wi-Fi SSID — the network the mAP lite broadcasts (see
-        map-lite.nix), or that a mAP-less Pi hosts itself, when a card opts into
-        mesh mode with a `/boot/firmware/wifi-ap.env`. Used whenever that file
-        leaves `SSID=` unset; override it there per card, or change this default
-        for a private deployment.
+        Default mesh Wi-Fi SSID — the network the Pi hosts on wlan0, or joins
+        as a client when an ethernet-cabled access point broadcasts it, when a
+        card opts into mesh mode with a `/boot/firmware/wifi-ap.env`. Used
+        whenever that file leaves `SSID=` unset; override it there per card, or
+        change this default for a private deployment.
       '';
     };
     psk = lib.mkOption {
@@ -51,7 +52,7 @@ in
     networking.networkmanager.enable = true;
 
     systemd.services.wifi-provision = {
-      description = "Provision Wi-Fi: mesh mode (wifi-ap.env) hosts/rides the mesh, else client mode joins wifi.env";
+      description = "Provision Wi-Fi: mesh mode (wifi-ap.env) hosts or joins the mesh, else client mode joins wifi.env";
       after = [ "NetworkManager.service" ];
       wants = [ "NetworkManager.service" ];
       wantedBy = [ "multi-user.target" ];
@@ -89,7 +90,7 @@ in
             connection.autoconnect-priority 10
         }
 
-        ethernet_link() { # is a mAP lite cabled to our ethernet?
+        ethernet_link() { # is an access point cabled to our ethernet?
           # Poll briefly, since carrier can take a moment to come up after boot.
           for _ in $(seq 10); do
             for d in /sys/class/net/*; do
@@ -120,16 +121,14 @@ in
           MESH_PSK=''${PASSWORD:-$MESH_PSK}
 
           if ethernet_link; then
-            # A mAP lite is cabled in: it broadcasts the mesh (provisioned by
-            # map-lite.nix) and bridges it in over ethernet, so the Pi is already
-            # on the network — nothing to host on wlan0. Leaving wlan0 idle also
-            # lets map-lite-provision borrow it to adopt a still-factory unit
-            # over that unit's Wi-Fi (a factory mAP can't be reached over the
-            # cable), then hand it straight back.
-            :
+            # An access point is cabled in (e.g. a mAP lite, provisioned in its
+            # own repo): it broadcasts the mesh, so don't host a competing AP —
+            # join the mesh as a client on wlan0 instead.
+            add_wifi dashchat-net "$MESH_SSID" "$MESH_PSK" 15
+            nmcli connection up dashchat-net >/dev/null 2>&1 || true
           else
-            # No mAP: host the mesh on this Pi so phones (and a directly-cabled
-            # second Pi) can reach its mailbox.
+            # No access point: host the mesh on this Pi so phones (and a
+            # directly-cabled second Pi) can reach its mailbox.
             add_ap dashchat-ap "$MESH_SSID" "$MESH_PSK"
             nmcli connection up dashchat-ap >/dev/null 2>&1 || true
           fi

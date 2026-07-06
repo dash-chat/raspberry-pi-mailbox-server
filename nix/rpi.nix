@@ -13,8 +13,8 @@
   boot.supportedFilesystems.zfs = lib.mkForce false;
 
   # brcmfmac needs the Pi's CYW43455 NVRAM blobs to bring up wlan0, which this
-  # appliance uses to host the mesh (mAP-less units) or join a network as a
-  # client. Redistributable firmware alone doesn't include them. The
+  # appliance uses to host the mesh or join a network as a client.
+  # Redistributable firmware alone doesn't include them. The
   # nixos-raspberrypi overlays make this the version matched to the kernel.
   hardware.firmware = [ pkgs.raspberrypiWirelessFirmware ];
 

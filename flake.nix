@@ -79,7 +79,6 @@
           }
           ./nix/nixos-module.nix
           ./nix/appliance.nix
-          ./nix/map-lite.nix
           ./nix/rpi.nix
           ({ ... }: {
             services.dashchat-mailbox.package =

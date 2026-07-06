@@ -4,7 +4,7 @@
 
 # The flashable image (built per the README) and the folder whose contents are
 # dropped onto the image's FAT boot partition (/boot/firmware) — e.g.
-# wifi-ap.env, wifi.env, map-lite.env.
+# wifi-ap.env, wifi.env.
 image := "mailbox.img"
 env_dir := "env"
 
