@@ -32,13 +32,32 @@ devices:
     lsblk -do NAME,SIZE,TYPE,TRAN,VENDOR,MODEL,RM
 
 # Flash the image to an SD card and copy env/* onto its FAT boot partition.
-# Usage: just flash /dev/sdX   (find the device with `just devices`)
-flash device:
+# With no device given, the SD card is auto-detected: the single removable/
+# USB disk that isn't the system disk (ambiguity aborts — the retype-to-
+# confirm prompt below is still the final gate either way).
+# Usage: just flash [/dev/sdX]   (list candidates with `just devices`)
+flash device="":
     #!/usr/bin/env bash
     set -euo pipefail
     img="{{image}}"; dev="{{device}}"; envdir="{{env_dir}}"
 
     [ -f "$img" ] || { echo "image '$img' not found — build it first (see README)"; exit 1; }
+
+    if [ -z "$dev" ]; then
+      # The disk backing / must never be a candidate ([...] strips a btrfs
+      # subvolume suffix from findmnt's SOURCE).
+      root_disk="$(lsblk -no PKNAME "$(findmnt -no SOURCE / | sed 's/\[.*//')" 2>/dev/null | head -1 || true)"
+      mapfile -t cands < <(lsblk -dno NAME,TYPE,RM,TRAN | awk -v rd="$root_disk" \
+        '$2 == "disk" && $1 != rd && ($3 == "1" || $4 == "usb") { print $1 }')
+      case "${#cands[@]}" in
+        0) echo "no removable disk found — insert the SD card, or pass the device (see 'just devices')"; exit 1 ;;
+        1) dev="/dev/${cands[0]}"; echo ">> auto-detected SD card: $dev" ;;
+        *) echo "several removable disks found — pass the device explicitly:"
+           for c in "${cands[@]}"; do lsblk -dno NAME,SIZE,TRAN,VENDOR,MODEL "/dev/$c"; done
+           exit 1 ;;
+      esac
+    fi
+
     [ -b "$dev" ] || { echo "'$dev' is not a block device; run 'just devices'"; exit 1; }
     [ "$(lsblk -dno TYPE "$dev")" = "disk" ] || { echo "'$dev' is not a whole disk"; exit 1; }
 
