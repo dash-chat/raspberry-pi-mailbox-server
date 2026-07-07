@@ -132,18 +132,33 @@ in
         ExecStart = pkgs.writeShellScript "dashchat-ap-guard" ''
           # Deauth stations sustained 5 dB below the join threshold (hysteresis
           # so someone standing beside the Pi doesn't flap): 2 strikes at a 3 s
-          # poll ≈ gone within ~6-10 s of walking away. The join gate then
-          # keeps them out until they come back close.
+          # poll ≈ gone within ~6-10 s of walking away. The hostapd RSSI join
+          # gate can't keep them out afterwards -- brcmfmac doesn't report
+          # signal on mgmt frames, so it fails open and the phone would rejoin
+          # from afar within seconds and flap forever. Instead each eviction
+          # also puts the MAC in hostapd's deny ACL for a cooldown, so the
+          # phone treats the network as gone; the ban lifts after $ban seconds
+          # and coming back close works (if still far, it's re-banned within
+          # one strike cycle of rejoining).
           evict=${toString (cfg.apRssiThresholdDbm - 5)}
-          declare -A strikes
+          ban=30
+          declare -A strikes banned_at
           while sleep 3; do
+            for m in "''${!banned_at[@]}"; do # lift expired bans
+              if [ $(( SECONDS - ''${banned_at[$m]} )) -ge "$ban" ]; then
+                ${pkgs.hostapd}/bin/hostapd_cli -p /run/dashchat-ap deny_acl DEL_MAC "$m" >/dev/null || true
+                unset "banned_at[$m]"
+              fi
+            done
             present=" "
             while read -r mac sig; do
               present="$present$mac "
               if [ "$sig" -lt "$evict" ]; then
                 strikes[$mac]=$(( ''${strikes[$mac]:-0} + 1 ))
                 if [ "''${strikes[$mac]}" -ge 2 ]; then
-                  echo "deauth $mac: signal $sig dBm < $evict dBm"
+                  echo "deauth+ban $mac: signal $sig dBm < $evict dBm"
+                  ${pkgs.hostapd}/bin/hostapd_cli -p /run/dashchat-ap deny_acl ADD_MAC "$mac" >/dev/null || true
+                  banned_at[$mac]=$SECONDS
                   ${pkgs.hostapd}/bin/hostapd_cli -p /run/dashchat-ap deauthenticate "$mac" >/dev/null || true
                   strikes[$mac]=0
                 fi
@@ -151,7 +166,17 @@ in
                 strikes[$mac]=0
               fi
             done < <(${pkgs.iw}/bin/iw dev wlan0 station dump \
-              | ${pkgs.gawk}/bin/awk '/^Station/ {mac=$2} /signal:/ {print mac, $2}')
+              | ${pkgs.gawk}/bin/awk '
+                  $1 == "Station" { mac = $2 }
+                  # Exact-field matches: a bare /signal:/ regex also hits the
+                  # "signal avg:" line, whose $2 is the string "avg:" -- that
+                  # made the -lt test error out and reset the strike counter
+                  # every poll, so nobody was ever evicted. Prefer the smoothed
+                  # average when the driver reports it; fall back to the
+                  # instantaneous reading otherwise.
+                  $1 == "signal:" { sig[mac] = $2 }
+                  $1 == "signal" && $2 == "avg:" { sig[mac] = $3 }
+                  END { for (m in sig) print m, sig[m] }')
             for m in "''${!strikes[@]}"; do # forget stations that left
               case "$present" in *" $m "*) ;; *) unset "strikes[$m]" ;; esac
             done
