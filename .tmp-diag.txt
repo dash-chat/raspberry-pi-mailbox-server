@@ -1,3 +1,0 @@
-PegasusHostel:wlp5s0
-lo:lo
-docker0:docker0
