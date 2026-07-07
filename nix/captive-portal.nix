@@ -3,12 +3,12 @@
 # Svelte SPA) instead of a silent "no internet" network.
 #
 # How the pieces fit:
-#   * NetworkManager's shared mode runs a dnsmasq per shared connection which
-#     reads /etc/NetworkManager/dnsmasq-shared.d/ — a wildcard `address=/#/`
-#     there resolves EVERY name to the Pi, so the OS connectivity probes
+#   * AP mode runs its own dnsmasq (dashchat-ap-dnsmasq, see appliance.nix)
+#     which reads /etc/dashchat-ap/dnsmasq.d/ — a wildcard `address=/#/` there
+#     resolves EVERY name to the Pi, so the OS connectivity probes
 #     (connectivitycheck.gstatic.com, captive.apple.com, msftconnecttest.com…)
-#     land on our nginx. Client mode is untouched: that dnsmasq only exists for
-#     shared connections.
+#     land on our nginx. Client mode is untouched: that dnsmasq only runs when
+#     the Pi hosts the AP.
 #   * nginx answers every unknown Host with a 302 to the portal — a failed
 #     probe is exactly what makes phones pop the captive-portal screen.
 #   * An nftables/iptables REDIRECT catches clients with hardcoded DNS servers
@@ -44,7 +44,7 @@ in
 
   config = lib.mkIf cfg.enable {
     # Resolve every DNS name to the Pi for AP clients.
-    environment.etc."NetworkManager/dnsmasq-shared.d/captive-portal.conf".text = ''
+    environment.etc."dashchat-ap/dnsmasq.d/captive-portal.conf".text = ''
       address=/#/${apAddress}
     '';
 
