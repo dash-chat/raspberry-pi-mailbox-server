@@ -169,6 +169,15 @@ mod tests {
     }
 
     #[test]
+    fn shipped_packs_lint() {
+        let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../../scenarios");
+        let s = Scenarios::load_dir(dir).unwrap();
+        for character in ["firefighters", "hospital", "journalist", "relative"] {
+            assert!(s.pack(character).is_some(), "missing pack {character}");
+        }
+    }
+
+    #[test]
     fn lint_rejects_duplicate_texts_across_packs() {
         let s = scenarios(&[
             ("a", pack(vec![mission("b", "same", "s1")])),

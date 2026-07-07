@@ -19,7 +19,7 @@ _default:
 build:
     #!/usr/bin/env bash
     set -euo pipefail
-    nix build .#sdImage -L --accept-flake-config
+    nix build github:dash-chat/raspberry-pi-mailbox-server#sdImage -L --accept-flake-config
     zst="$(echo result/sd-image/*.img.zst)"
     [ -f "$zst" ] || { echo "no *.img.zst under result/sd-image/ — did the build succeed?"; exit 1; }
     echo ">> decompressing $zst -> {{image}}"

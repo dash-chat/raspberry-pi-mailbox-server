@@ -122,9 +122,29 @@ pub async fn seed_identity(data_dir: &Path, bundle: &IdentityBundle) -> Result<(
     Ok(())
 }
 
+/// Seed the identity and start the node. The caller picks the `NodeConfig`
+/// (production: [`bot_node_config`]; tests: `NodeConfig::testing()`-based)
+/// and registers a mailbox afterwards.
+pub async fn build_node(
+    data_dir: &Path,
+    bundle: &IdentityBundle,
+    config: NodeConfig,
+) -> Result<(Node, mpsc::Receiver<dashchat_node::Notification>)> {
+    seed_identity(data_dir, bundle).await?;
+    let (notification_tx, notification_rx) = mpsc::channel(1024);
+    let node = Node::new(
+        data_dir.to_path_buf(),
+        config,
+        Some(notification_tx),
+        None,
+    )
+    .await?;
+    Ok((node, notification_rx))
+}
+
 /// Node config for a bot: fully offline-capable — no relay, no mDNS, no p2p,
 /// no blob sync. Everything flows through the one configured mailbox.
-fn bot_node_config() -> NodeConfig {
+pub fn bot_node_config() -> NodeConfig {
     let mut config = NodeConfig::default().no_p2p().no_blob_sync();
     // Runtime QR minting isn't used (the QR comes from the bundle), but keep
     // any incidental inbox registration far-lived anyway.
@@ -176,22 +196,9 @@ pub async fn run(config: BotConfig) -> Result<()> {
     let bundle = IdentityBundle::load(&config.identity)?;
     let cast = crate::cast::Cast::load(&config.cast)?.resolve()?;
     let scenarios = Scenarios::load_dir(&config.scenarios_dir)?;
-    anyhow::ensure!(
-        scenarios.pack(&bundle.character).is_some(),
-        "no scenario pack for character {:?}",
-        bundle.character
-    );
 
-    seed_identity(&config.data_dir, &bundle).await?;
-
-    let (notification_tx, notification_rx) = mpsc::channel(1024);
-    let node = Node::new(
-        config.data_dir.clone(),
-        bot_node_config(),
-        Some(notification_tx),
-        None,
-    )
-    .await?;
+    let (node, notification_rx) =
+        build_node(&config.data_dir, &bundle, bot_node_config()).await?;
     info!(
         character = %bundle.character,
         device_id = %hex::encode(bundle.device_id()?.as_bytes()),
@@ -200,37 +207,62 @@ pub async fn run(config: BotConfig) -> Result<()> {
 
     register_mailbox(&node, &config.mailbox_url).await;
 
-    // Announce the character's profile once.
-    if node.my_profile().await?.is_none() {
-        let name = scenarios
-            .pack(&bundle.character)
-            .map(|p| p.name.clone())
-            .unwrap_or_else(|| bundle.character.clone());
-        node.set_profile(Profile {
-            name,
-            surname: None,
-            avatar: None,
-            about: None,
-        })
-        .await?;
-    }
-
     let state_path = config.data_dir.join("state.json");
-    let bot = Bot {
-        node,
-        bundle,
-        cast,
-        scenarios,
-        timing: config.timing,
-        state: BotState::load(&state_path),
-        state_path,
-        next_fire: BTreeMap::new(),
-    };
-    bot.run_loop(notification_rx).await
+    Bot::new(node, bundle, cast, scenarios, config.timing, state_path)?
+        .run_loop(notification_rx)
+        .await
 }
 
 impl Bot {
-    async fn run_loop(mut self, mut notifications: mpsc::Receiver<dashchat_node::Notification>) -> Result<()> {
+    pub fn new(
+        node: Node,
+        bundle: IdentityBundle,
+        cast: ResolvedCast,
+        scenarios: Scenarios,
+        timing: Timing,
+        state_path: PathBuf,
+    ) -> Result<Self> {
+        anyhow::ensure!(
+            scenarios.pack(&bundle.character).is_some(),
+            "no scenario pack for character {:?}",
+            bundle.character
+        );
+        Ok(Self {
+            node,
+            bundle,
+            cast,
+            scenarios,
+            timing,
+            state: BotState::load(&state_path),
+            state_path,
+            next_fire: BTreeMap::new(),
+        })
+    }
+
+    /// Announce the character's profile once. Must happen before accepting
+    /// contacts: `add_contact`'s reply requires a profile.
+    async fn ensure_profile(&self) -> Result<()> {
+        if self.node.my_profile().await?.is_none() {
+            let name = self
+                .scenarios
+                .pack(&self.bundle.character)
+                .expect("checked in new()")
+                .name
+                .clone();
+            self.node
+                .set_profile(Profile {
+                    name,
+                    surname: None,
+                    avatar: None,
+                    about: None,
+                })
+                .await?;
+        }
+        Ok(())
+    }
+
+    pub async fn run_loop(mut self, mut notifications: mpsc::Receiver<dashchat_node::Notification>) -> Result<()> {
+        self.ensure_profile().await?;
         let poll = Duration::from_secs(self.timing.poll_interval_secs.max(1));
         let mut tick = tokio::time::interval(poll);
         tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
