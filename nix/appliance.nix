@@ -55,14 +55,18 @@ in
     };
     apRssiThresholdDbm = lib.mkOption {
       type = lib.types.int;
-      default = -55;
+      default = -40;
       description = ''
         Minimum client signal strength (dBm, as received by the Pi) to answer
         probes or accept association in AP mode — a deterministic distance
-        gate on top of the low transmit power. Rough calibration: -50 same
-        desk, -55 same room, -65 next room. Only checked at join time; a
-        client that associates up close and then walks away stays associated.
-        Set to 0 to disable.
+        gate on top of the low transmit power. Rough calibration at typical
+        phone probe power: -35 touching the Pi, -40 within a meter or two,
+        -50 same desk, -55 same room. Body/pocket/orientation swing readings
+        by 10-20 dB, so anything tighter than -40 makes joining flaky even up
+        close. Enforced at join time by hostapd's RSSI gate and continuously
+        by dashchat-ap-guard, which deauths stations that fall 5 dB below it.
+        Set to 0 to disable the join gate (the guard then evicts at -5 dBm,
+        i.e. effectively never).
       '';
     };
     apAddress = lib.mkOption {
@@ -94,6 +98,7 @@ in
       description = "hostapd for the Pi-hosted mesh AP (range-limited)";
       # No wantedBy: started (and stopped) only by wifi-provision, so a card
       # that switches roles between boots never races a stale AP.
+      wants = [ "dashchat-ap-guard.service" ];
       serviceConfig = {
         ExecStartPre = pkgs.writeShellScript "dashchat-ap-addr" ''
           ${pkgs.iproute2}/bin/ip addr replace ${cfg.apAddress}/24 dev wlan0
@@ -108,6 +113,49 @@ in
             sleep 1
           done
           echo "could not clamp wlan0 txpower" >&2
+        '';
+        Restart = "on-failure";
+        RestartSec = 2;
+      };
+    };
+
+    # "You must be standing beside the Pi": the RSSI gate in hostapd.conf only
+    # refuses distant JOINs, so this watches associated stations and deauths
+    # any that walk away. Uses data-path signal readings (iw station dump),
+    # which brcmfmac reports reliably even where mgmt-frame RSSI (the join
+    # gate) isn't available — so it's also the enforcement backstop.
+    systemd.services.dashchat-ap-guard = {
+      description = "Evict mesh-AP clients that move away from the Pi";
+      bindsTo = [ "dashchat-hostapd.service" ];
+      after = [ "dashchat-hostapd.service" ];
+      serviceConfig = {
+        ExecStart = pkgs.writeShellScript "dashchat-ap-guard" ''
+          # Deauth stations sustained 5 dB below the join threshold (hysteresis
+          # so someone standing beside the Pi doesn't flap): 2 strikes at a 3 s
+          # poll ≈ gone within ~6-10 s of walking away. The join gate then
+          # keeps them out until they come back close.
+          evict=${toString (cfg.apRssiThresholdDbm - 5)}
+          declare -A strikes
+          while sleep 3; do
+            present=" "
+            while read -r mac sig; do
+              present="$present$mac "
+              if [ "$sig" -lt "$evict" ]; then
+                strikes[$mac]=$(( ''${strikes[$mac]:-0} + 1 ))
+                if [ "''${strikes[$mac]}" -ge 2 ]; then
+                  echo "deauth $mac: signal $sig dBm < $evict dBm"
+                  ${pkgs.hostapd}/bin/hostapd_cli -p /run/dashchat-ap deauthenticate "$mac" >/dev/null || true
+                  strikes[$mac]=0
+                fi
+              else
+                strikes[$mac]=0
+              fi
+            done < <(${pkgs.iw}/bin/iw dev wlan0 station dump \
+              | ${pkgs.gawk}/bin/awk '/^Station/ {mac=$2} /signal:/ {print mac, $2}')
+            for m in "''${!strikes[@]}"; do # forget stations that left
+              case "$present" in *" $m "*) ;; *) unset "strikes[$m]" ;; esac
+            done
+          done
         '';
         Restart = "on-failure";
         RestartSec = 2;
@@ -179,6 +227,7 @@ in
           cat > /run/dashchat-ap/hostapd.conf <<'EOF'
         interface=wlan0
         driver=nl80211
+        ctrl_interface=/run/dashchat-ap
         wpa=2
         wpa_key_mgmt=WPA-PSK
         rsn_pairwise=CCMP
@@ -207,6 +256,12 @@ in
         # signal strength on management frames.
         rssi_ignore_probe_request=${toString cfg.apRssiThresholdDbm}
         rssi_reject_assoc_rssi=${toString cfg.apRssiThresholdDbm}
+
+        # The RSSI gate only applies at join time -- these evict clients that
+        # associated up close and then walked away: kick on repeated unacked
+        # frames, and poll/expire idle stations after a minute.
+        disassoc_low_ack=1
+        ap_max_inactivity=60
         EOF
           printf 'ssid=%s\nwpa_passphrase=%s\n' "$ssid" "$psk" >> /run/dashchat-ap/hostapd.conf
           chmod 600 /run/dashchat-ap/hostapd.conf
