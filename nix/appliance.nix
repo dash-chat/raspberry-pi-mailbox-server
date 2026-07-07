@@ -32,7 +32,8 @@ in
       default = "dashchat"; # WPA2 requires 8-63 chars
       description = ''
         Default mesh Wi-Fi password matching `ssid`. Used whenever
-        `/boot/firmware/wifi-ap.env` leaves `PASSWORD=` unset.
+        `/boot/firmware/wifi-ap.env` has no `PASSWORD=` line at all; a
+        present-but-empty `PASSWORD=` line instead hosts an OPEN network.
       '';
     };
     country = lib.mkOption {
@@ -92,7 +93,7 @@ in
     # Stamp the image so `cat /etc/dashchat-version` over SSH settles which
     # build a card actually carries (we've debugged a stale reflash before).
     # Bump when changing Wi-Fi behavior.
-    environment.etc."dashchat-version".text = "2026-07-07b guard v2: probe pings, evict below ${toString cfg.apEvictBelowMbit} Mbit/s\n";
+    environment.etc."dashchat-version".text = "2026-07-07c open-ap: empty PASSWORD= line hosts an open network; guard v2 evict below ${toString cfg.apEvictBelowMbit} Mbit/s\n";
 
     # NetworkManager (rather than standalone wpa_supplicant) because it tolerates
     # being driven imperatively at runtime and handles autoconnect/priority
@@ -289,9 +290,6 @@ in
         interface=wlan0
         driver=nl80211
         ctrl_interface=/run/dashchat-ap
-        wpa=2
-        wpa_key_mgmt=WPA-PSK
-        rsn_pairwise=CCMP
 
         # 2.4 GHz so that cheap/old 2.4-only devices can still join; minimum
         # tx power and the ap-guard do the range limiting.
@@ -326,7 +324,11 @@ in
         disassoc_low_ack=1
         ap_max_inactivity=60
         EOF
-          printf 'ssid=%s\nwpa_passphrase=%s\n' "$ssid" "$psk" >> /run/dashchat-ap/hostapd.conf
+          printf 'ssid=%s\n' "$ssid" >> /run/dashchat-ap/hostapd.conf
+          # Empty psk -> open network (hostapd defaults to wpa=0).
+          if [ -n "$psk" ]; then
+            printf 'wpa=2\nwpa_key_mgmt=WPA-PSK\nrsn_pairwise=CCMP\nwpa_passphrase=%s\n' "$psk" >> /run/dashchat-ap/hostapd.conf
+          fi
           chmod 600 /run/dashchat-ap/hostapd.conf
           nmcli device set wlan0 managed no >/dev/null 2>&1 || true
           systemctl restart dashchat-hostapd.service dashchat-ap-dnsmasq.service
@@ -344,13 +346,16 @@ in
 
         if [ -f /boot/firmware/wifi-ap.env ]; then
           # Mesh mode: generate the declared network. SSID=/PASSWORD= come from
-          # the file; anything left unset falls back to the baked-in defaults.
+          # the file; a MISSING line falls back to the baked-in default, while
+          # an explicitly empty `PASSWORD=` line means an OPEN network.
           MESH_SSID=${lib.escapeShellArg cfg.ssid}
           MESH_PSK=${lib.escapeShellArg cfg.psk}
           # shellcheck disable=SC1091
           . /boot/firmware/wifi-ap.env
           MESH_SSID=''${SSID:-$MESH_SSID}
-          MESH_PSK=''${PASSWORD:-$MESH_PSK}
+          if grep -q '^PASSWORD=' /boot/firmware/wifi-ap.env; then
+            MESH_PSK=''${PASSWORD-}
+          fi
 
           # Host the mesh on this Pi so phones (and a directly-cabled second
           # Pi) can reach its mailbox. Ethernet doesn't change this: a cabled

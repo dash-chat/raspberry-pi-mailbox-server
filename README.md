@@ -124,10 +124,11 @@ PASSWORD=dashchat
 ```
 
 Either line may be omitted to use the baked-in `dashchat.wifi.{ssid,psk}`
-defaults ([`nix/appliance.nix`](nix/appliance.nix)). The Pi hosts the network
-itself on `wlan0` (AP mode, serving DHCP to connecting phones). Ethernet
-doesn't change this — a cabled uplink is just an extra interface, handy for
-SSHing into the Pi while the AP runs.
+defaults ([`nix/appliance.nix`](nix/appliance.nix)); a present-but-**empty**
+`PASSWORD=` line instead hosts an **open network** (no password). The Pi
+hosts the network itself on `wlan0` (AP mode, serving DHCP to connecting
+phones). Ethernet doesn't change this — a cabled uplink is just an extra
+interface, handy for SSHing into the Pi while the AP runs.
 
 Change the SSID/password by editing `wifi-ap.env` and rebooting.
 
