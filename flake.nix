@@ -25,13 +25,6 @@
     # Reuse the nixpkgs nixos-raspberrypi already pins (no extra download); used
     # only for the devShell tooling.
     nixpkgs.follows = "nixos-raspberrypi/nixpkgs";
-
-    # Rust toolchain for the larp-bot workspace (crates/): the pinned nixpkgs
-    # ships rustc 1.91, but the dash-chat crates want 1.94 (rust-toolchain.toml).
-    rust-overlay = {
-      url = "github:oxalica/rust-overlay";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
   };
 
   outputs =
@@ -40,40 +33,19 @@
       nixos-raspberrypi,
       dash-chat,
       nixpkgs,
-      rust-overlay,
       ...
     }:
     {
       # Dev tooling (e.g. `just` for the flashing recipes). Enter with
       # `nix develop`.
-      devShells.x86_64-linux.default =
-        let
-          pkgs = import nixpkgs {
-            system = "x86_64-linux";
-            overlays = [ rust-overlay.overlays.default ];
-          };
-          # Match dash-chat's rust-toolchain.toml (the larp-bot workspace
-          # depends on its crates via git at the flake-pinned rev). Minimal
-          # profile: skips the hefty rust-docs component.
-          rustToolchain = pkgs.rust-bin.stable."1.94.0".minimal.override {
-            extensions = [
-              "rust-src"
-              "clippy"
-              "rustfmt"
-            ];
-          };
-        in
-        pkgs.mkShell {
-          packages = with pkgs; [
-            just # flashing recipes
-            zstd # decompress the built .img.zst
-            nodejs # captive-portal (portal/) development
-            pnpm # portal package manager
-            rustToolchain # larp-bot workspace (crates/)
-            pkg-config # native deps of the dash-chat crate tree
-            openssl
-          ];
-        };
+      devShells.x86_64-linux.default = nixpkgs.legacyPackages.x86_64-linux.mkShell {
+        packages = with nixpkgs.legacyPackages.x86_64-linux; [
+          just # flashing recipes
+          zstd # decompress the built .img.zst
+          nodejs # captive-portal (portal/) development
+          pnpm # portal package manager
+        ];
+      };
 
       packages.x86_64-linux = {
         default = dash-chat.packages.x86_64-linux.replicating-local-mailbox-server;

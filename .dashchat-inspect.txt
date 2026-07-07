@@ -1,0 +1,101 @@
+### connecting to dashchat
+[2KL'argument «wlp5s0» s'ha activat correctament amb «b7faad13-d90c-452c-9cac-961d84f79801».
+    inet 10.42.0.26/24 brd 10.42.0.255 scope global dynamic noprefixroute wlp5s0
+Warning: Permanently added '10.42.0.1' (ED25519) to the list of known hosts.
+== uptime/host ==
+dashchat-mailbox
+ 22:06:00  up   0:04,  0 users,  load average: 0.00, 0.02, 0.00
+
+== iw dev wlan0 info (TXPOWER) ==
+
+== services ==
+bash: line 4: iw: command not found
+active
+inactive
+active
+active
+
+== station dump ==
+bash: line 6: iw: command not found
+
+== guard journal (this boot) ==
+-- No entries --
+
+== hostapd journal ==
+Dec 19 22:01:58 dashchat-mailbox hostapd[1087]: wlan0: interface state DISABLED->DISABLED
+Dec 19 22:01:58 dashchat-mailbox hostapd[1087]: wlan0: AP-DISABLED
+Dec 19 22:01:58 dashchat-mailbox hostapd[1087]: wlan0: CTRL-EVENT-TERMINATING
+Dec 19 22:01:58 dashchat-mailbox hostapd[1087]: hostapd_free_hapd_data: Interface wlan0 wasn't started
+Dec 19 22:01:58 dashchat-mailbox hostapd[1087]: nl80211: deinit ifname=wlan0 disabled_11b_rates=0
+Dec 19 22:01:58 dashchat-mailbox systemd[1]: dashchat-hostapd.service: Main process exited, code=exited, status=1/FAILURE
+Dec 19 22:01:58 dashchat-mailbox systemd[1]: dashchat-hostapd.service: Failed with result 'exit-code'.
+Dec 19 22:01:58 dashchat-mailbox systemd[1]: dashchat-hostapd.service: Consumed 35ms CPU time, 2.4M read from disk.
+Dec 19 22:02:01 dashchat-mailbox systemd[1]: dashchat-hostapd.service: Scheduled restart job, restart counter is at 1.
+Dec 19 22:02:01 dashchat-mailbox systemd[1]: Starting hostapd for the Pi-hosted mesh AP (range-limited)...
+Dec 19 22:02:01 dashchat-mailbox systemd[1]: Started hostapd for the Pi-hosted mesh AP (range-limited).
+Dec 19 22:02:01 dashchat-mailbox hostapd[1099]: wlan0: interface state UNINITIALIZED->COUNTRY_UPDATE
+Dec 19 22:02:01 dashchat-mailbox hostapd[1099]: wlan0: interface state COUNTRY_UPDATE->ENABLED
+Dec 19 22:02:01 dashchat-mailbox hostapd[1099]: wlan0: AP-ENABLED
+Dec 19 22:04:16 dashchat-mailbox hostapd[1099]: wlan0: STA 1a:e1:4b:67:02:15 IEEE 802.11: associated
+Dec 19 22:04:16 dashchat-mailbox hostapd[1099]: wlan0: STA 1a:e1:4b:67:02:15 IEEE 802.11: associated
+Dec 19 22:04:16 dashchat-mailbox hostapd[1099]: wlan0: AP-STA-CONNECTED 1a:e1:4b:67:02:15
+Dec 19 22:04:16 dashchat-mailbox hostapd[1099]: wlan0: STA 1a:e1:4b:67:02:15 RADIUS: starting accounting session 50EF595B56B68326
+Dec 19 22:04:16 dashchat-mailbox hostapd[1099]: wlan0: STA 1a:e1:4b:67:02:15 WPA: pairwise key handshake completed (RSN)
+Dec 19 22:04:16 dashchat-mailbox hostapd[1099]: wlan0: EAPOL-4WAY-HS-COMPLETED 1a:e1:4b:67:02:15
+Dec 19 22:04:16 dashchat-mailbox hostapd[1099]: wlan0: STA 1a:e1:4b:67:02:15 RADIUS: starting accounting session 50EF595B56B68326
+Dec 19 22:04:16 dashchat-mailbox hostapd[1099]: wlan0: STA 1a:e1:4b:67:02:15 WPA: pairwise key handshake completed (RSN)
+Dec 19 22:05:55 dashchat-mailbox hostapd[1099]: wlan0: STA 5c:87:9c:f8:33:65 IEEE 802.11: associated
+Dec 19 22:05:55 dashchat-mailbox hostapd[1099]: wlan0: STA 5c:87:9c:f8:33:65 IEEE 802.11: associated
+Dec 19 22:05:55 dashchat-mailbox hostapd[1099]: wlan0: AP-STA-CONNECTED 5c:87:9c:f8:33:65
+Dec 19 22:05:55 dashchat-mailbox hostapd[1099]: wlan0: STA 5c:87:9c:f8:33:65 RADIUS: starting accounting session 14D1F7CEB45BF851
+Dec 19 22:05:55 dashchat-mailbox hostapd[1099]: wlan0: STA 5c:87:9c:f8:33:65 WPA: pairwise key handshake completed (RSN)
+Dec 19 22:05:55 dashchat-mailbox hostapd[1099]: wlan0: EAPOL-4WAY-HS-COMPLETED 5c:87:9c:f8:33:65
+Dec 19 22:05:55 dashchat-mailbox hostapd[1099]: wlan0: STA 5c:87:9c:f8:33:65 RADIUS: starting accounting session 14D1F7CEB45BF851
+Dec 19 22:05:55 dashchat-mailbox hostapd[1099]: wlan0: STA 5c:87:9c:f8:33:65 WPA: pairwise key handshake completed (RSN)
+
+== wifi-provision journal ==
+Dec 19 22:01:45 dashchat-mailbox systemd[1]: Starting Provision Wi-Fi: mesh mode (wifi-ap.env) hosts or joins the mesh, else client mode joins wifi.env...
+Dec 19 22:01:58 dashchat-mailbox systemd[1]: Finished Provision Wi-Fi: mesh mode (wifi-ap.env) hosts or joins the mesh, else client mode joins wifi.env.
+
+== hostapd.conf ==
+interface=wlan0
+driver=nl80211
+wpa=2
+wpa_key_mgmt=WPA-PSK
+rsn_pairwise=CCMP
+
+# 2.4 GHz so that cheap/old 2.4-only devices can still join; the rate
+# floor and RSSI gate below do the range limiting instead.
+country_code=ES
+ieee80211d=1
+hw_mode=g
+channel=1
+ieee80211n=1
+wmm_enabled=1
+
+# 802.11h power constraint: compliant clients transmit 20 dB below the
+# regulatory max, shrinking the client->AP side of the cell too.
+local_pwr_constraint=20
+
+# Rate floor (units of 100 kbit/s): nothing below 24 Mbit/s, beacons
+# included -- distant radios can't decode the AP at all. Also drops the
+# slow 802.11b rates, which otherwise carry furthest of all.
+supported_rates=240 360 480 540
+basic_rates=240 360 480 540
+
+# Distance gate: ignore probes / reject association from clients the Pi
+# hears weaker than this. Fails open if the driver doesn't report
+# signal strength on management frames.
+rssi_ignore_probe_request=-55
+rssi_reject_assoc_rssi=-55
+ssid=dashchat
+wpa_passphrase=dashchat
+
+== deny ACL ==
+Selected interface 'hostapd.conf'
+
+== reg domain ==
+Failed to connect to hostapd - wpa_ctrl_open: Connection refused
+bash: line 14: iw: command not found
+### ssh exit: 0
+### restored connection: PegasusHostel:wlp5s0

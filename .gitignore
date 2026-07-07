@@ -26,10 +26,6 @@ storybook-static
 /target/
 target
 
-# larp character private identities (public halves live in cast.toml)
-secrets/
-larp-identity*.toml
-
 # nix
 .direnv/
 .envrc
