@@ -59,8 +59,20 @@ in
         this fails open — the driver reports no signal strength on management
         frames (verified live), so hostapd's RSSI gate never rejects anyone.
         Kept for hardware/kernels that do report it. Actual range limiting is
-        done by the 54 Mbit/s rate floor at minimum tx power plus
-        dashchat-ap-guard's link-quality eviction (see those for details).
+        done by minimum tx power plus dashchat-ap-guard's link-quality
+        eviction (see apEvictBelowMbit).
+      '';
+    };
+    apEvictBelowMbit = lib.mkOption {
+      type = lib.types.ints.positive;
+      default = 24;
+      description = ''
+        Evict an AP-mode client whose AP->client bitrate sits below this
+        (Mbit/s) for two consecutive 3 s polls. The firmware's rate control is
+        the distance proxy on this hardware (brcmfmac reports no per-station
+        RSSI): walk-test data at 1 dBm tx power showed clients beside the Pi
+        at 52-72 Mbit/s (never below 39, even mid-walk) and clients ~20 m away
+        at 7-22 Mbit/s, so 24 splits the two regimes cleanly.
       '';
     };
     apAddress = lib.mkOption {
@@ -80,13 +92,19 @@ in
     # Stamp the image so `cat /etc/dashchat-version` over SSH settles which
     # build a card actually carries (we've debugged a stale reflash before).
     # Bump when changing Wi-Fi behavior.
-    environment.etc."dashchat-version".text = "2026-07-07 range rework: 54M floor, no 11n, link-quality guard\n";
+    environment.etc."dashchat-version".text = "2026-07-07b guard v2: probe pings, evict below ${toString cfg.apEvictBelowMbit} Mbit/s\n";
 
     # NetworkManager (rather than standalone wpa_supplicant) because it tolerates
     # being driven imperatively at runtime and handles autoconnect/priority
     # cleanly. NM drives wpa_supplicant itself over DBus, so we don't set
     # `networking.wireless.enable` directly.
     networking.networkmanager.enable = true;
+
+    # In client mode, always associate with the burned-in hardware MAC (NM's
+    # `preserve` default happens to do this today, but pin it): upstream
+    # networks may allowlist the Pi by MAC — e.g. a captive-portal hotspot
+    # with an ip-binding bypass for a headless mailbox Pi.
+    networking.networkmanager.wifi.macAddress = "permanent";
 
     # --- AP mode: hostapd, not NetworkManager ----------------------------------
     # NM's AP mode can't express the range-limiting knobs we want (data-rate
@@ -122,25 +140,30 @@ in
     # deauths any whose link says they walked away. RSSI would be the natural
     # metric, but brcmfmac reports NO per-station signal in AP mode (verified
     # live: `iw station dump` has no "signal:" lines), so this reads the
-    # AP->client data path instead, which the 54 Mbit/s rate floor makes
-    # collapse sharply with distance.
+    # AP->client data path instead: at 1 dBm tx power the firmware's rate
+    # control collapses sharply with distance (52-72 Mbit/s beside the Pi,
+    # 7-22 Mbit/s at ~20 m in walk tests), making bitrate a reliable proxy.
     systemd.services.dashchat-ap-guard = {
       description = "Evict mesh-AP clients that move away from the Pi";
       bindsTo = [ "dashchat-hostapd.service" ];
       after = [ "dashchat-hostapd.service" ];
       serviceConfig = {
         ExecStart = pkgs.writeShellScript "dashchat-ap-guard" ''
-          # A station is "bad" on a poll when either:
-          #   * its tx bitrate sits below the 54 Mbit/s legacy floor -- only
-          #     possible if an HT/MCS rate leaked in, which means "far"; or
-          #   * most frames we sent it since the last poll went unacked
-          #     (tx failed delta outpacing tx packets delta, min 10 attempts).
+          # Each poll pings every station (via its wlan0 neighbor-table IP) so
+          # tx bitrate / tx failed stay fresh even for idle stations -- without
+          # this, a far idle phone keeps its last "good" bitrate forever and is
+          # never evicted. A station is "bad" on a poll when either:
+          #   * its tx bitrate sits below the eviction floor (= far, see the
+          #     apEvictBelowMbit option for the calibration data); or
+          #   * most probe frames since the last poll went unacked (tx failed
+          #     delta outpacing tx packets delta, min 6 attempts).
           # Two consecutive bad polls at 3 s -> deauth + a $ban-second deny-ACL
           # ban. The ban matters: hostapd's RSSI join gate fails open on this
           # driver, so without it the phone would rejoin from afar within
           # seconds and flap forever. If it's still far when the ban lifts,
           # it's re-banned one strike cycle after rejoining.
           ban=30
+          min_rate=${toString cfg.apEvictBelowMbit}
           declare -A strikes banned_at prev_ok prev_fail
           while sleep 3; do
             for m in "''${!banned_at[@]}"; do # lift expired bans
@@ -149,6 +172,12 @@ in
                 unset "banned_at[$m]"
               fi
             done
+            # Probe every station so the counters below are fresh this poll.
+            while read -r sta_ip; do
+              ${pkgs.iputils}/bin/ping -c 3 -W 0.4 -i 0.15 -I wlan0 "$sta_ip" >/dev/null 2>&1 &
+            done < <(${pkgs.iproute2}/bin/ip -4 neigh show dev wlan0 \
+              | ${pkgs.gawk}/bin/awk '$2 == "lladdr" {print $1}')
+            wait
             present=" "
             while read -r mac txbr ok fail; do
               present="$present$mac "
@@ -157,10 +186,10 @@ in
               prev_ok[$mac]=$ok
               prev_fail[$mac]=$fail
               bad=0
-              [ "''${txbr%%.*}" -lt 54 ] && bad=1
+              [ "''${txbr%%.*}" -lt "$min_rate" ] && bad=1
               if [ "$d_ok" -ge 0 ] && [ "$d_fail" -ge 0 ]; then # negative = counters reset on reassoc
                 attempts=$(( d_ok + d_fail ))
-                if [ "$attempts" -ge 10 ] && [ $(( d_fail * 2 )) -gt "$attempts" ]; then
+                if [ "$attempts" -ge 6 ] && [ $(( d_fail * 2 )) -gt "$attempts" ]; then
                   bad=1
                 fi
               fi
@@ -264,12 +293,8 @@ in
         wpa_key_mgmt=WPA-PSK
         rsn_pairwise=CCMP
 
-        # 2.4 GHz so that cheap/old 2.4-only devices can still join; the rate
-        # floor and the ap-guard below do the range limiting instead.
-        # 802.11n stays OFF: the rate floor only constrains legacy rates, and
-        # with HT enabled distant clients fall back to MCS0 (~7 Mbit/s), which
-        # decodes far beyond where the legacy floor dies — observed live as a
-        # phone 20 m away happily linked at 7.2 Mbit/s.
+        # 2.4 GHz so that cheap/old 2.4-only devices can still join; minimum
+        # tx power and the ap-guard do the range limiting.
         country_code=${cfg.country}
         ieee80211d=1
         hw_mode=g
@@ -280,10 +305,11 @@ in
         # regulatory max, shrinking the client->AP side of the cell too.
         local_pwr_constraint=20
 
-        # Rate floor (units of 100 kbit/s): 54 Mbit/s ONLY, beacons included.
-        # 54M legacy needs ~25 dB SNR, so at 1 dBm tx power the network stops
-        # being decodable -- or even visible -- a few meters out. 24M proved
-        # too generous: with clear line of sight it still decoded at 20 m.
+        # Rate floor (units of 100 kbit/s), best effort ONLY: the brcmfmac
+        # firmware (full-MAC) was observed ignoring both this and the absence
+        # of ieee80211n -- beacons still advertised HT and stations linked at
+        # 65-72 Mbit/s MCS rates. Kept for drivers that honor it; on this
+        # hardware the ap-guard is the real range enforcement.
         supported_rates=540
         basic_rates=540
 
