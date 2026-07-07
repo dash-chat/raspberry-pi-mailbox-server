@@ -138,9 +138,9 @@ async fn register_mailbox(node: &Node, url: &str) {
     loop {
         match dashchat_node::mailbox::fetch_mailbox_health(url).await {
             Ok(health) => {
-                if !node.mailboxes.is_tracked(&health.endpoint_id).await {
+                if !node.mailboxes.is_tracked(&health.mailbox_id).await {
                     let client = mailbox_client::toy::ToyMailboxClient::new(
-                        health.endpoint_id,
+                        health.mailbox_id,
                         url.to_string(),
                         node.endpoint_id(),
                         node.unfetched_blob_tracker(),
