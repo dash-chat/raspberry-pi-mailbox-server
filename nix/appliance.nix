@@ -8,7 +8,7 @@
 #     provisioned in its own repo), the Pi does NOT host anything — it joins
 #     that network as a client on wlan0; otherwise this Pi hosts the mesh
 #     itself on wlan0 (AP mode, via hostapd — deliberately range-limited to
-#     5 GHz / minimum tx power / rate floor / RSSI gate, see the options).
+#     minimum tx power / rate floor / RSSI gate, see the options).
 #   * absent -> "client mode": just join the network named in
 #     /boot/firmware/wifi.env (SSID=/PASSWORD=) like a normal Wi-Fi device.
 { config, lib, pkgs, ... }:
@@ -183,12 +183,12 @@ in
         wpa_key_mgmt=WPA-PSK
         rsn_pairwise=CCMP
 
-        # 5 GHz attenuates much faster through walls than 2.4 -> smaller cell.
-        # Channel 36: indoor-allowed nearly everywhere, no DFS wait.
+        # 2.4 GHz so that cheap/old 2.4-only devices can still join; the rate
+        # floor and RSSI gate below do the range limiting instead.
         country_code=${cfg.country}
         ieee80211d=1
-        hw_mode=a
-        channel=36
+        hw_mode=g
+        channel=1
         ieee80211n=1
         wmm_enabled=1
 
@@ -197,7 +197,8 @@ in
         local_pwr_constraint=20
 
         # Rate floor (units of 100 kbit/s): nothing below 24 Mbit/s, beacons
-        # included -- distant radios can't decode the AP at all.
+        # included -- distant radios can't decode the AP at all. Also drops the
+        # slow 802.11b rates, which otherwise carry furthest of all.
         supported_rates=240 360 480 540
         basic_rates=240 360 480 540
 
