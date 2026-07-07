@@ -32,73 +32,12 @@ devices:
     lsblk -do NAME,SIZE,TYPE,TRAN,VENDOR,MODEL,RM
 
 # Flash the image to an SD card and copy env/* onto its FAT boot partition.
-# With no device given, the SD card is auto-detected: the single removable/
-# USB disk that isn't the system disk (ambiguity aborts — the retype-to-
-# confirm prompt below is still the final gate either way).
+# With no device given, the SD card is auto-detected (the single removable/
+# USB disk that isn't the system disk; ambiguity aborts). Interactive: asks
+# to retype the device path before erasing.
 # Usage: just flash [/dev/sdX]   (list candidates with `just devices`)
 flash device="":
     #!/usr/bin/env bash
     set -euo pipefail
-    img="{{image}}"; dev="{{device}}"; envdir="{{env_dir}}"
-
-    [ -f "$img" ] || { echo "image '$img' not found — build it first (see README)"; exit 1; }
-
-    if [ -z "$dev" ]; then
-      # The disk backing / must never be a candidate ([...] strips a btrfs
-      # subvolume suffix from findmnt's SOURCE).
-      root_disk="$(lsblk -no PKNAME "$(findmnt -no SOURCE / | sed 's/\[.*//')" 2>/dev/null | head -1 || true)"
-      mapfile -t cands < <(lsblk -dno NAME,TYPE,RM,TRAN | awk -v rd="$root_disk" \
-        '$2 == "disk" && $1 != rd && ($3 == "1" || $4 == "usb") { print $1 }')
-      case "${#cands[@]}" in
-        0) echo "no removable disk found — insert the SD card, or pass the device (see 'just devices')"; exit 1 ;;
-        1) dev="/dev/${cands[0]}"; echo ">> auto-detected SD card: $dev" ;;
-        *) echo "several removable disks found — pass the device explicitly:"
-           for c in "${cands[@]}"; do lsblk -dno NAME,SIZE,TRAN,VENDOR,MODEL "/dev/$c"; done
-           exit 1 ;;
-      esac
-    fi
-
-    [ -b "$dev" ] || { echo "'$dev' is not a block device; run 'just devices'"; exit 1; }
-    [ "$(lsblk -dno TYPE "$dev")" = "disk" ] || { echo "'$dev' is not a whole disk"; exit 1; }
-
-    echo "This will ERASE and overwrite:"
-    lsblk -o NAME,SIZE,TYPE,TRAN,VENDOR,MODEL,MOUNTPOINTS "$dev"
-    read -rp "Retype the device path to confirm ($dev): " ok
-    [ "$ok" = "$dev" ] || { echo "no match; aborting"; exit 1; }
-
-    # Unmount anything currently mounted from the target.
-    for p in $(lsblk -rno NAME "$dev" | tail -n +2); do sudo umount "/dev/$p" 2>/dev/null || true; done
-
-    echo ">> flashing $img -> $dev"
-    sudo dd if="$img" of="$dev" bs=4M conv=fsync status=progress
-    sync
-    sudo partprobe "$dev" 2>/dev/null || true
-    sudo udevadm settle 2>/dev/null || true
-
-    # Locate the FAT boot partition (the firmware partition mounted at
-    # /boot/firmware, where the appliance reads its *.env). Retry while udev
-    # re-reads the freshly written partition table.
-    boot=""
-    for _ in $(seq 10); do
-      boot="$(lsblk -rno NAME,FSTYPE "$dev" | awk '$2=="vfat"{print "/dev/"$1; exit}')"
-      [ -n "$boot" ] && break
-      sudo partprobe "$dev" 2>/dev/null || true; sudo udevadm settle 2>/dev/null || true; sleep 1
-    done
-    if [ -z "$boot" ]; then boot="${dev}1"; [ -b "$boot" ] || boot="${dev}p1"; fi
-    [ -b "$boot" ] || { echo "could not find the FAT boot partition on $dev"; exit 1; }
-
-    # Copy env/* onto it. (Copy, not move, so ./env stays reusable for the next
-    # card — swap `cp` for `mv` below if you really want to move.)
-    mnt="$(mktemp -d)"
-    trap 'sudo umount "$mnt" 2>/dev/null || true; rmdir "$mnt" 2>/dev/null || true' EXIT
-    sudo mount "$boot" "$mnt"
-    shopt -s nullglob
-    files=("$envdir"/*)
-    if [ "${#files[@]}" -eq 0 ]; then
-      echo ">> note: '$envdir/' is empty — nothing to copy"
-    else
-      echo ">> copying ${#files[@]} file(s) from $envdir/ to $boot"
-      for f in "${files[@]}"; do [ -f "$f" ] && sudo cp -v "$f" "$mnt/"; done
-      sync
-    fi
-    echo ">> done — $dev is ready to boot"
+    [ -f "{{image}}" ] || { echo "image '{{image}}' not found — build it first (see README)"; exit 1; }
+    ./scripts/flash-sd-image.sh "{{image}}" "{{device}}" "{{env_dir}}"

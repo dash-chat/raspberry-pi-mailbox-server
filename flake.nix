@@ -35,6 +35,35 @@
       nixpkgs,
       ...
     }:
+    let
+      # The flashing helpers (scripts/), packaged so consumers of this flake
+      # (e.g. the LARP repo) can reuse them with pinned dependencies.
+      # writeShellApplication also shellchecks them at build time.
+      mkScripts =
+        pkgs:
+        let
+          runtimeInputs = with pkgs; [
+            util-linux # lsblk, findmnt, mount
+            coreutils
+            gnused
+            gawk
+          ];
+        in
+        rec {
+          # Prints the single removable/USB non-system disk, or fails.
+          detect-sd-card = pkgs.writeShellApplication {
+            name = "detect-sd-card";
+            inherit runtimeInputs;
+            text = builtins.readFile ./scripts/detect-sd-card.sh;
+          };
+          # Flash an image + optional env dir; auto-detects the card.
+          flash-sd-image = pkgs.writeShellApplication {
+            name = "flash-sd-image";
+            runtimeInputs = runtimeInputs ++ [ detect-sd-card ];
+            text = builtins.readFile ./scripts/flash-sd-image.sh;
+          };
+        };
+    in
     {
       # Dev tooling (e.g. `just` for the flashing recipes). Enter with
       # `nix develop`.
@@ -54,14 +83,16 @@
         sdImage = self.nixosConfigurations.mailbox-pi.config.system.build.sdImage;
         # The captive-portal SPA (portal/), buildable standalone for iteration.
         portal = nixpkgs.legacyPackages.x86_64-linux.callPackage ./nix/portal.nix { };
-      };
+      }
+      // mkScripts nixpkgs.legacyPackages.x86_64-linux;
 
       packages.aarch64-linux = {
         default = dash-chat.packages.aarch64-linux.replicating-local-mailbox-server;
         # Same image, built natively on an aarch64 builder (e.g. CI's arm runner).
         sdImage = self.nixosConfigurations.mailbox-pi.config.system.build.sdImage;
         portal = nixpkgs.legacyPackages.aarch64-linux.callPackage ./nix/portal.nix { };
-      };
+      }
+      // mkScripts nixpkgs.legacyPackages.aarch64-linux;
 
       # `nixos-raspberrypi.lib.nixosSystem` is a drop-in for
       # `nixpkgs.lib.nixosSystem`: it pins `nixpkgs.hostPlatform = aarch64-linux`,
