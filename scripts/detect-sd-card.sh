@@ -8,8 +8,11 @@ set -euo pipefail
 # subvolume suffix from findmnt's SOURCE).
 root_disk="$(lsblk -no PKNAME "$(findmnt -no SOURCE / | sed 's/\[.*//')" 2>/dev/null | head -1 || true)"
 
+# Candidates: removable disks, USB disks, and mmc/SD-slot disks (built-in
+# readers expose the card as a NON-removable mmcblk device — an mmc disk
+# that isn't backing / is an SD card by construction).
 mapfile -t cands < <(lsblk -dno NAME,TYPE,RM,TRAN | awk -v rd="$root_disk" \
-  '$2 == "disk" && $1 != rd && ($3 == "1" || $4 == "usb") { print $1 }')
+  '$2 == "disk" && $1 != rd && ($3 == "1" || $4 == "usb" || $4 == "mmc" || $1 ~ /^mmcblk/) { print $1 }')
 
 case "${#cands[@]}" in
   0)
