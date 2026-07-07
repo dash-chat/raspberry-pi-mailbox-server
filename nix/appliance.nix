@@ -55,15 +55,12 @@ in
       default = -40;
       description = ''
         Minimum client signal strength (dBm, as received by the Pi) to answer
-        probes or accept association in AP mode — a deterministic distance
-        gate on top of the low transmit power. Rough calibration at typical
-        phone probe power: -35 touching the Pi, -40 within a meter or two,
-        -50 same desk, -55 same room. Body/pocket/orientation swing readings
-        by 10-20 dB, so anything tighter than -40 makes joining flaky even up
-        close. Enforced at join time by hostapd's RSSI gate and continuously
-        by dashchat-ap-guard, which deauths stations that fall 5 dB below it.
-        Set to 0 to disable the join gate (the guard then evicts at -5 dBm,
-        i.e. effectively never).
+        probes or accept association in AP mode. NOTE: on the Pi's brcmfmac
+        this fails open — the driver reports no signal strength on management
+        frames (verified live), so hostapd's RSSI gate never rejects anyone.
+        Kept for hardware/kernels that do report it. Actual range limiting is
+        done by the 54 Mbit/s rate floor at minimum tx power plus
+        dashchat-ap-guard's link-quality eviction (see those for details).
       '';
     };
     apAddress = lib.mkOption {
@@ -79,6 +76,11 @@ in
 
   config = {
     networking.hostName = lib.mkDefault "dashchat-mailbox";
+
+    # Stamp the image so `cat /etc/dashchat-version` over SSH settles which
+    # build a card actually carries (we've debugged a stale reflash before).
+    # Bump when changing Wi-Fi behavior.
+    environment.etc."dashchat-version".text = "2026-07-07 range rework: 54M floor, no 11n, link-quality guard\n";
 
     # NetworkManager (rather than standalone wpa_supplicant) because it tolerates
     # being driven imperatively at runtime and handles autoconnect/priority
@@ -116,30 +118,30 @@ in
       };
     };
 
-    # "You must be standing beside the Pi": the RSSI gate in hostapd.conf only
-    # refuses distant JOINs, so this watches associated stations and deauths
-    # any that walk away. Uses data-path signal readings (iw station dump),
-    # which brcmfmac reports reliably even where mgmt-frame RSSI (the join
-    # gate) isn't available — so it's also the enforcement backstop.
+    # "You must be standing beside the Pi": watches associated stations and
+    # deauths any whose link says they walked away. RSSI would be the natural
+    # metric, but brcmfmac reports NO per-station signal in AP mode (verified
+    # live: `iw station dump` has no "signal:" lines), so this reads the
+    # AP->client data path instead, which the 54 Mbit/s rate floor makes
+    # collapse sharply with distance.
     systemd.services.dashchat-ap-guard = {
       description = "Evict mesh-AP clients that move away from the Pi";
       bindsTo = [ "dashchat-hostapd.service" ];
       after = [ "dashchat-hostapd.service" ];
       serviceConfig = {
         ExecStart = pkgs.writeShellScript "dashchat-ap-guard" ''
-          # Deauth stations sustained 5 dB below the join threshold (hysteresis
-          # so someone standing beside the Pi doesn't flap): 2 strikes at a 3 s
-          # poll ≈ gone within ~6-10 s of walking away. The hostapd RSSI join
-          # gate can't keep them out afterwards -- brcmfmac doesn't report
-          # signal on mgmt frames, so it fails open and the phone would rejoin
-          # from afar within seconds and flap forever. Instead each eviction
-          # also puts the MAC in hostapd's deny ACL for a cooldown, so the
-          # phone treats the network as gone; the ban lifts after $ban seconds
-          # and coming back close works (if still far, it's re-banned within
-          # one strike cycle of rejoining).
-          evict=${toString (cfg.apRssiThresholdDbm - 5)}
+          # A station is "bad" on a poll when either:
+          #   * its tx bitrate sits below the 54 Mbit/s legacy floor -- only
+          #     possible if an HT/MCS rate leaked in, which means "far"; or
+          #   * most frames we sent it since the last poll went unacked
+          #     (tx failed delta outpacing tx packets delta, min 10 attempts).
+          # Two consecutive bad polls at 3 s -> deauth + a $ban-second deny-ACL
+          # ban. The ban matters: hostapd's RSSI join gate fails open on this
+          # driver, so without it the phone would rejoin from afar within
+          # seconds and flap forever. If it's still far when the ban lifts,
+          # it's re-banned one strike cycle after rejoining.
           ban=30
-          declare -A strikes banned_at
+          declare -A strikes banned_at prev_ok prev_fail
           while sleep 3; do
             for m in "''${!banned_at[@]}"; do # lift expired bans
               if [ $(( SECONDS - ''${banned_at[$m]} )) -ge "$ban" ]; then
@@ -148,12 +150,24 @@ in
               fi
             done
             present=" "
-            while read -r mac sig; do
+            while read -r mac txbr ok fail; do
               present="$present$mac "
-              if [ "$sig" -lt "$evict" ]; then
+              d_ok=$(( ok - ''${prev_ok[$mac]:-$ok} ))
+              d_fail=$(( fail - ''${prev_fail[$mac]:-$fail} ))
+              prev_ok[$mac]=$ok
+              prev_fail[$mac]=$fail
+              bad=0
+              [ "''${txbr%%.*}" -lt 54 ] && bad=1
+              if [ "$d_ok" -ge 0 ] && [ "$d_fail" -ge 0 ]; then # negative = counters reset on reassoc
+                attempts=$(( d_ok + d_fail ))
+                if [ "$attempts" -ge 10 ] && [ $(( d_fail * 2 )) -gt "$attempts" ]; then
+                  bad=1
+                fi
+              fi
+              if [ "$bad" = 1 ]; then
                 strikes[$mac]=$(( ''${strikes[$mac]:-0} + 1 ))
                 if [ "''${strikes[$mac]}" -ge 2 ]; then
-                  echo "deauth+ban $mac: signal $sig dBm < $evict dBm"
+                  echo "deauth+ban $mac: tx bitrate $txbr MBit/s, delta acked $d_ok / failed $d_fail"
                   ${pkgs.hostapd}/bin/hostapd_cli -p /run/dashchat-ap deny_acl ADD_MAC "$mac" >/dev/null || true
                   banned_at[$mac]=$SECONDS
                   ${pkgs.hostapd}/bin/hostapd_cli -p /run/dashchat-ap deauthenticate "$mac" >/dev/null || true
@@ -164,18 +178,14 @@ in
               fi
             done < <(${pkgs.iw}/bin/iw dev wlan0 station dump \
               | ${pkgs.gawk}/bin/awk '
-                  $1 == "Station" { mac = $2 }
-                  # Exact-field matches: a bare /signal:/ regex also hits the
-                  # "signal avg:" line, whose $2 is the string "avg:" -- that
-                  # made the -lt test error out and reset the strike counter
-                  # every poll, so nobody was ever evicted. Prefer the smoothed
-                  # average when the driver reports it; fall back to the
-                  # instantaneous reading otherwise.
-                  $1 == "signal:" { sig[mac] = $2 }
-                  $1 == "signal" && $2 == "avg:" { sig[mac] = $3 }
-                  END { for (m in sig) print m, sig[m] }')
+                  function flush() { if (mac != "" && br != "" && ok != "" && fail != "") print mac, br, ok, fail }
+                  $1 == "Station" { flush(); mac = $2; br = ok = fail = "" }
+                  $1 == "tx" && $2 == "packets:" { ok = $3 }
+                  $1 == "tx" && $2 == "failed:"  { fail = $3 }
+                  $1 == "tx" && $2 == "bitrate:" { br = $3 }
+                  END { flush() }')
             for m in "''${!strikes[@]}"; do # forget stations that left
-              case "$present" in *" $m "*) ;; *) unset "strikes[$m]" ;; esac
+              case "$present" in *" $m "*) ;; *) unset "strikes[$m]" "prev_ok[$m]" "prev_fail[$m]" ;; esac
             done
           done
         '';
@@ -255,27 +265,32 @@ in
         rsn_pairwise=CCMP
 
         # 2.4 GHz so that cheap/old 2.4-only devices can still join; the rate
-        # floor and RSSI gate below do the range limiting instead.
+        # floor and the ap-guard below do the range limiting instead.
+        # 802.11n stays OFF: the rate floor only constrains legacy rates, and
+        # with HT enabled distant clients fall back to MCS0 (~7 Mbit/s), which
+        # decodes far beyond where the legacy floor dies — observed live as a
+        # phone 20 m away happily linked at 7.2 Mbit/s.
         country_code=${cfg.country}
         ieee80211d=1
         hw_mode=g
         channel=1
-        ieee80211n=1
         wmm_enabled=1
 
         # 802.11h power constraint: compliant clients transmit 20 dB below the
         # regulatory max, shrinking the client->AP side of the cell too.
         local_pwr_constraint=20
 
-        # Rate floor (units of 100 kbit/s): nothing below 24 Mbit/s, beacons
-        # included -- distant radios can't decode the AP at all. Also drops the
-        # slow 802.11b rates, which otherwise carry furthest of all.
-        supported_rates=240 360 480 540
-        basic_rates=240 360 480 540
+        # Rate floor (units of 100 kbit/s): 54 Mbit/s ONLY, beacons included.
+        # 54M legacy needs ~25 dB SNR, so at 1 dBm tx power the network stops
+        # being decodable -- or even visible -- a few meters out. 24M proved
+        # too generous: with clear line of sight it still decoded at 20 m.
+        supported_rates=540
+        basic_rates=540
 
         # Distance gate: ignore probes / reject association from clients the Pi
-        # hears weaker than this. Fails open if the driver doesn't report
-        # signal strength on management frames.
+        # hears weaker than this. KNOWN to fail open on the Pi's brcmfmac
+        # (it doesn't report signal strength on management frames); kept in
+        # case a future kernel/firmware starts reporting it.
         rssi_ignore_probe_request=${toString cfg.apRssiThresholdDbm}
         rssi_reject_assoc_rssi=${toString cfg.apRssiThresholdDbm}
 

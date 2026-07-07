@@ -457,7 +457,8 @@
         "nixpkgs": [
           "nixos-raspberrypi",
           "nixpkgs"
-        ]
+        ],
+        "rust-overlay": "rust-overlay_3"
       }
     },
     "rust-overlay": {
@@ -493,6 +494,26 @@
         "owner": "oxalica",
         "repo": "rust-overlay",
         "rev": "f29b0f7a9f367e0056b716f8aa137cb41e784444",
+        "type": "github"
+      },
+      "original": {
+        "owner": "oxalica",
+        "repo": "rust-overlay",
+        "type": "github"
+      }
+    },
+    "rust-overlay_3": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1783404876,
+        "narHash": "sha256-DAh1CfiRVwr8Szkj5PiHmsqh10NHPb8SKPx7w/B+l9E=",
+        "owner": "oxalica",
+        "repo": "rust-overlay",
+        "rev": "3c161f20193bd91a73913b417e5b06d41860336d",
         "type": "github"
       },
       "original": {

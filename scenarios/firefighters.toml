@@ -1,0 +1,31 @@
+# Firefighters mission pack. Texts are sent VERBATIM: recognition by the
+# other bots depends on exact text matching, so edit them here, never live.
+
+name = "Firefighters"
+
+greeting = """🚒 Fire station here! After the earthquake every unit is deployed and our radio is down. If you carry messages to our station, we'll act on them right away."""
+
+[[missions]]
+to = "hospital"
+text = """🚒 We've rescued three people from a collapsed building on Main Street. Two are badly hurt and we're bringing them to the hospital. Please get this message to the hospital so they prepare the operating room!"""
+success = """🏥 Received — operating room ready and stretchers at the door. Thank you for getting us the warning so fast!"""
+
+[[missions]]
+to = "journalist"
+text = """🚒 The creek bridge was damaged and could collapse at any moment. Everyone needs to know: nobody must cross it! Take this warning to the journalist so she publishes it."""
+success = """📰 Publishing it right now on every channel: CREEK BRIDGE CLOSED. Thanks for bringing this to me!"""
+
+[[missions]]
+to = "relative"
+text = """🚒 We found Grandma Rosa safe and sound at the school shelter. Her family lives out of town and is worried sick. Get the news to her relative!"""
+success = """💌 What a relief, thank you!!! I was fearing the worst. Tell Grandma Rosa we love her and we'll be there soon!"""
+
+[[missions]]
+to = "hospital"
+text = """🚒 We're running out of first-aid supplies at the rescue point. We need the hospital to send bandages and IV fluids. Please carry this request to them!"""
+success = """🏥 We're packing you a full kit with bandages and IV fluids. Send someone to pick it up at the emergency entrance!"""
+
+[[missions]]
+to = "journalist"
+text = """🚒 We need volunteers with shovels and gloves at the market square to clear rubble. Ask the journalist to put out a call — bring her this message!"""
+success = """📰 Call published: VOLUNTEERS WITH SHOVELS TO THE MARKET SQUARE. I'm already getting replies, people are on their way!"""

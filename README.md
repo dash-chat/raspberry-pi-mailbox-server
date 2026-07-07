@@ -124,15 +124,10 @@ PASSWORD=dashchat
 ```
 
 Either line may be omitted to use the baked-in `dashchat.wifi.{ssid,psk}`
-defaults ([`nix/appliance.nix`](nix/appliance.nix)). How it's broadcast depends
-on the hardware:
-
-- **An access point cabled to ethernet** (e.g. a MikroTik mAP lite — provisioned
-  from its own repo, not this image) broadcasts it. The Pi detects the cable and
-  does **not** host anything: it joins the mesh as a normal Wi-Fi client on
-  `wlan0`.
-- **No access point cabled in** — the Pi hosts the network itself on `wlan0`
-  (AP mode, serving DHCP to connecting phones).
+defaults ([`nix/appliance.nix`](nix/appliance.nix)). The Pi hosts the network
+itself on `wlan0` (AP mode, serving DHCP to connecting phones). Ethernet
+doesn't change this — a cabled uplink is just an extra interface, handy for
+SSHing into the Pi while the AP runs.
 
 Change the SSID/password by editing `wifi-ap.env` and rebooting.
 

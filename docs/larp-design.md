@@ -48,11 +48,11 @@ carries it to the destination.
         │       sides; character QRs on the wall) │
         │                    ║                    │
         └────────────────────╨────────────────────┘
-   RELATIVE (near end)                   JOURNALIST
-   (Pi: AP + mailbox + LoRa)            (phone hotspot with internet;
-        ~ LoRa link ~                    bot runs on Digital Ocean via
-   RELATIVE (far end)                    the existing cloud mailbox)
-   (Pi: mailbox + bot + LoRa)
+   RELATIVE (near end)                   UPLINK to the JOURNALIST
+   (Pi: AP + mailbox + LoRa)            (phone hotspot with internet; the
+        ~ LoRa link ~                    journalist herself is OUTSIDE the
+   RELATIVE (far end)                    town — her bot runs on Digital
+   (Pi: mailbox + bot + LoRa)            Ocean via the existing cloud mailbox)
 ```
 
 Corner assignment is arbitrary — the only requirement is two characters per
@@ -65,7 +65,7 @@ players agree not to cross it.
 |---|---|---|
 | **firefighters** | The fire brigade HQ | Pi 5: Wi-Fi AP + mailbox + bot |
 | **hospital** | The town hospital | Pi 5: Wi-Fi AP + mailbox + bot |
-| **journalist** | Reporter with a satellite uplink | Phone hotspot (internet); bot on a Digital Ocean droplet syncing through the **existing cloud mailbox** |
+| **journalist** | News desk **outside the town**, telling the world what's happening inside; the hotspot corner is the town's only surviving uplink to her | Phone hotspot (internet); bot on a Digital Ocean droplet syncing through the **existing cloud mailbox** |
 | **relative** | Family member in a distant town | Two Pi 5s: the on-map one is AP + mailbox + LoRa bridge; the far-away one runs mailbox + bot + LoRa bridge. Messages to/from the relative take a LoRa round-trip |
 | *(base station)* | **The town mayor** — captive portal only, not a chat character | MikroTik mAP lite: Wi-Fi AP + RouterOS hotspot serving the mayor's portal (built from the `../map-lite-portal` repo); plus a Pi 5 running the mailbox, joining the mAP lite's Wi-Fi as a **client** (the image's existing `wifi.env` client mode) so the base keeps dead-drop relay semantics |
 

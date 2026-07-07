@@ -1,0 +1,32 @@
+# Distant relative mission pack. Texts are sent VERBATIM (see
+# firefighters.toml). This character lives far away: messages reach the map
+# only over the LoRa link, so keep them shortish.
+
+name = "Distant Relative"
+
+greeting = """💌 Hello?? This is Anna, writing from the next town over. My whole family lives where the earthquake hit and I can't reach anyone. Please, please carry my messages — you're my only connection!"""
+
+[[missions]]
+to = "hospital"
+text = """💌 My father Peter takes heart medication and only had two days' worth left. Is he registered at the hospital? Please take my question to them!"""
+success = """🏥 Peter is here, stable, and we've restocked his medication. He sends his love — tell Anna not to worry."""
+
+[[missions]]
+to = "firefighters"
+text = """💌 Our family house at 5 Willow Lane looked cracked in the photos. Can the firefighters check whether it's safe before anyone goes back in? Please bring them my request!"""
+success = """🚒 We inspected 5 Willow Lane: the facade is cracked but the structure holds. Nobody should use the balcony until we brace it."""
+
+[[missions]]
+to = "journalist"
+text = """💌 People here want to help! We've gathered blankets, water and food. Where should the trucks go? Ask the journalist to find out and publish it!"""
+success = """📰 Published the answer: AID TRUCKS TO THE SPORTS HALL PARKING LOT. Tell your neighbors the town says thank you!"""
+
+[[missions]]
+to = "hospital"
+text = """💌 My niece Clara is diabetic and was staying near the market square. If she shows up at the hospital, she needs insulin. Please get this to the hospital staff!"""
+success = """🏥 Noted on our watch list: Clara, diabetic. If she comes in, insulin is ready. We'll take good care of her."""
+
+[[missions]]
+to = "firefighters"
+text = """💌 Our old dog Max ran off during the quake — last seen by the fountain. I know it's silly with everything going on... but could the firefighters keep an eye out? Take them my plea!"""
+success = """🚒 Not silly at all. Crews have Max's description and the fountain is on our patrol route. If he turns up, we'll bring him to the shelter."""

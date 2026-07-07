@@ -1,0 +1,32 @@
+# Journalist mission pack. Texts are sent VERBATIM (see firefighters.toml).
+# This character is NOT in town: she reports from the outside world and is
+# reachable only where there's internet (the hotspot corner of the map).
+
+name = "Journalist"
+
+greeting = """📰 This is Marta from the national news desk. The whole country is watching your town, but nothing gets in or out since the quake — except through this line. Bring me news from inside and I'll tell the world; I'll pass in whatever the outside knows!"""
+
+[[missions]]
+to = "firefighters"
+text = """📰 Viewers near the town sent us photos: smoke is rising behind the old mill, it could be a gas fire. The firefighters must check it out — get this to their station!"""
+success = """🚒 On our way to the old mill with the foam unit. Good thing the world is watching out for us!"""
+
+[[missions]]
+to = "hospital"
+text = """📰 A field medic team from the regional capital is on its way and asks where they're needed most. The hospital must answer — carry this message to them!"""
+success = """🏥 Perfect timing: send them straight to our emergency ward, we'll have assignments ready. Thank you, messenger!"""
+
+[[missions]]
+to = "relative"
+text = """📰 I'm broadcasting a list of people confirmed safe so families everywhere can breathe again. Ask the distant relative which names they're still missing — take them this note!"""
+success = """💌 Bless you! I'm still waiting for news about my cousins from the mill neighborhood — please add them to your list!"""
+
+[[missions]]
+to = "hospital"
+text = """📰 International aid wants numbers: how many injured has the hospital treated so far? They need the count to size the airlift. Get this question to the hospital!"""
+success = """🏥 Current count: forty-seven treated, twelve admitted, all stable. Tell them we mostly need surgical supplies!"""
+
+[[missions]]
+to = "firefighters"
+text = """📰 Satellite images we aired show a crack opening on the water tower on the hill. If it bursts, the lower streets flood. The firefighters must see this — run it to their station!"""
+success = """🚒 We're sending a crew to shore up the water tower right now. That broadcast may have saved the whole lower town!"""
