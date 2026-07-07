@@ -2,13 +2,11 @@
 #
 # Wi-Fi has two modes, chosen at boot by whether /boot/firmware/wifi-ap.env
 # exists:
-#   * present -> "mesh mode": the declared network (SSID=/PASSWORD=, falling
-#     back to the baked-in defaults below) must exist. If ethernet is cabled to
-#     a Wi-Fi access point broadcasting it (e.g. a MikroTik mAP lite,
-#     provisioned in its own repo), the Pi does NOT host anything — it joins
-#     that network as a client on wlan0; otherwise this Pi hosts the mesh
-#     itself on wlan0 (AP mode, via hostapd — deliberately range-limited to
-#     minimum tx power / rate floor / RSSI gate, see the options).
+#   * present -> "mesh mode": this Pi hosts the declared network
+#     (SSID=/PASSWORD=, falling back to the baked-in defaults below) on wlan0
+#     (AP mode, via hostapd — deliberately range-limited to minimum tx power /
+#     rate floor / RSSI gate, see the options). Ethernet is just an extra
+#     network interface (e.g. for administering the Pi while the AP runs).
 #   * absent -> "client mode": just join the network named in
 #     /boot/firmware/wifi.env (SSID=/PASSWORD=) like a normal Wi-Fi device.
 { config, lib, pkgs, ... }:
@@ -23,8 +21,7 @@ in
       type = lib.types.str;
       default = "dashchat";
       description = ''
-        Default mesh Wi-Fi SSID — the network the Pi hosts on wlan0, or joins
-        as a client when an ethernet-cabled access point broadcasts it, when a
+        Default mesh Wi-Fi SSID — the network the Pi hosts on wlan0 when a
         card opts into mesh mode with a `/boot/firmware/wifi-ap.env`. Used
         whenever that file leaves `SSID=` unset; override it there per card, or
         change this default for a private deployment.
@@ -220,7 +217,7 @@ in
     };
 
     systemd.services.wifi-provision = {
-      description = "Provision Wi-Fi: mesh mode (wifi-ap.env) hosts or joins the mesh, else client mode joins wifi.env";
+      description = "Provision Wi-Fi: mesh mode (wifi-ap.env) hosts the mesh AP, else client mode joins wifi.env";
       after = [ "NetworkManager.service" ];
       wants = [ "NetworkManager.service" ];
       wantedBy = [ "multi-user.target" ];
@@ -294,19 +291,6 @@ in
           systemctl restart dashchat-hostapd.service dashchat-ap-dnsmasq.service
         }
 
-        ethernet_link() { # is an access point cabled to our ethernet?
-          # Poll briefly, since carrier can take a moment to come up after boot.
-          for _ in $(seq 10); do
-            for d in /sys/class/net/*; do
-              [ -e "$d/wireless" ] && continue
-              [ "''${d##*/}" = "lo" ] && continue
-              [ "$(cat "$d/carrier" 2>/dev/null || echo 0)" = "1" ] && return 0
-            done
-            sleep 1
-          done
-          return 1
-        }
-
         iw reg set ${lib.escapeShellArg cfg.country} 2>/dev/null || true
 
         # Start clean so a card can switch modes/roles between boots.
@@ -327,17 +311,10 @@ in
           MESH_SSID=''${SSID:-$MESH_SSID}
           MESH_PSK=''${PASSWORD:-$MESH_PSK}
 
-          if ethernet_link; then
-            # An access point is cabled in (e.g. a mAP lite, provisioned in its
-            # own repo): it broadcasts the mesh, so don't host a competing AP —
-            # join the mesh as a client on wlan0 instead.
-            add_wifi dashchat-net "$MESH_SSID" "$MESH_PSK" 15
-            nmcli connection up dashchat-net >/dev/null 2>&1 || true
-          else
-            # No access point: host the mesh on this Pi so phones (and a
-            # directly-cabled second Pi) can reach its mailbox.
-            add_ap "$MESH_SSID" "$MESH_PSK"
-          fi
+          # Host the mesh on this Pi so phones (and a directly-cabled second
+          # Pi) can reach its mailbox. Ethernet doesn't change this: a cabled
+          # uplink is just for administration, never a reason not to host.
+          add_ap "$MESH_SSID" "$MESH_PSK"
         elif [ -f /boot/firmware/wifi.env ]; then
           # Client mode: no mesh declared, so just join the given network like a
           # normal Wi-Fi device. Format:

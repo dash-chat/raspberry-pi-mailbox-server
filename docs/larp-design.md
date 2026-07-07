@@ -41,9 +41,11 @@ carries it to the destination.
         │    Player A's      ║     Player B's     │
         │      side          ║       side         │
         │                BASE STATION             │
-        │            (Pi: AP + mailbox,           │
-        │             no bot — reachable          │
-        │              from both sides)           │
+        │      (MikroTik mAP lite: AP + captive   │
+        │       portal = the town mayor; plus a   │
+        │       Pi mailbox joining its Wi-Fi as   │
+        │       a client — reachable from both    │
+        │       sides; character QRs on the wall) │
         │                    ║                    │
         └────────────────────╨────────────────────┘
    RELATIVE (near end)                   JOURNALIST
@@ -65,21 +67,28 @@ players agree not to cross it.
 | **hospital** | The town hospital | Pi 5: Wi-Fi AP + mailbox + bot |
 | **journalist** | Reporter with a satellite uplink | Phone hotspot (internet); bot on a Digital Ocean droplet syncing through the **existing cloud mailbox** |
 | **relative** | Family member in a distant town | Two Pi 5s: the on-map one is AP + mailbox + LoRa bridge; the far-away one runs mailbox + bot + LoRa bridge. Messages to/from the relative take a LoRa round-trip |
-| *(base station)* | — (pure relay, no character) | Pi 5: Wi-Fi AP + mailbox only |
+| *(base station)* | **The town mayor** — captive portal only, not a chat character | MikroTik mAP lite: Wi-Fi AP + RouterOS hotspot serving the mayor's portal (built from the `../map-lite-portal` repo); plus a Pi 5 running the mailbox, joining the mAP lite's Wi-Fi as a **client** (the image's existing `wifi.env` client mode) so the base keeps dead-drop relay semantics |
 
 Total hardware: **5 × Pi 5** (base, firefighters, hospital, relative-near,
-relative-far) + **2 × Heltec V4 LoRa dev kits** (USB-C serial on the two
-relative Pis) + **1 phone** (journalist hotspot) + **1 DO droplet** (already
-running the cloud mailbox; gains the journalist bot).
+relative-far) + **1 × MikroTik mAP lite** (base AP + mayor portal) + **2 ×
+Heltec V4 LoRa dev kits** (USB-C serial on the two relative Pis) + **1 phone**
+(journalist hotspot) + **1 DO droplet** (already running the cloud mailbox;
+gains the journalist bot).
 
-### Game setup (briefing, before anyone walks)
+### Game setup (at the base station)
 
-1. Each pair adds **each other** as Dash Chat contacts (mutual QR scan, in person).
-2. Each player scans the **printed QR sheet** with the four characters'
-   contact QR codes and adds all of them as contacts.
-3. One player creates a **group** containing: both players + the four characters.
-4. The facilitator reads the earthquake framing (also printed on the sheet)
-   and sends the pair off, one to each side.
+The game begins at the base station — the mayor's office. Players join the
+mAP lite's Wi-Fi and the captive portal opens: **the town mayor** explains
+the earthquake, pleads for help, and gives the first instructions —
+
+1. Add **each other** as Dash Chat contacts (mutual QR scan, in person).
+2. Add the four characters as contacts by scanning their **QR posters on the
+   wall** around the base station.
+3. Create a **group** containing: both players + the four characters.
+4. Split up — one player per side of the cliff — and start carrying messages.
+
+The base Pi's mailbox is on that same Wi-Fi, so the group is seeded into the
+base mailbox immediately.
 
 The contact requests and group invitations only *reach* each bot when a player
 first syncs at that bot's station — that's fine and thematic: each character
@@ -135,6 +144,12 @@ Ending: the facilitator calls time; the group chat itself is the score sheet
   (header + payload) to the embedding application.
 - **Cloud mailbox**: already running; the journalist bot and any
   hotspot-connected player sync through it.
+- **`../map-lite-portal` repo**: captive-portal tooling for MikroTik mAP
+  lites — a Svelte portal webapp served from the router's flash by the
+  RouterOS hotspot (passwordless trial login), plus `just provision` /
+  `just netinstall` to configure devices. The base station's mayor portal is
+  a content variant of this webapp, built and provisioned with that repo's
+  existing tooling.
 
 ## 3. New component: `larp-bot` crate
 
@@ -156,7 +171,7 @@ larp-bot run    --config /etc/larp-bot/config.toml # the daemon (loads the flash
 The character's identity is **not** generated on the Pi — it's a small
 **identity bundle** generated once on the laptop and flashed onto each card's
 FAT boot partition alongside `wifi-ap.env`/`larp.env`. Re-flashing the image
-or wiping `/var/lib/larp-bot` must never invalidate the printed QR sheet.
+or wiping `/var/lib/larp-bot` must never invalidate the printed QR posters.
 
 What has to be in the bundle (all three, or a wipe kills the QR):
 
@@ -176,7 +191,7 @@ idempotently re-registers the bundle's inbox topic as active
 initialization need no upstream patch). `/var/lib/larp-bot` is thereby demoted
 to a cache: after a wipe the bot forgets group memberships and ack-dedup
 state, but players can simply re-scan the *same printed QR* and re-invite it —
-the sheet stays valid for the character's lifetime.
+the posters stay valid for the character's lifetime.
 
 The bundle sits plaintext on the FAT partition; for a game prop that's fine.
 
@@ -185,7 +200,7 @@ The bundle sits plaintext on the FAT partition; for a game prop that's fine.
 - **Contact QR with long expiry.** The bundle's inbox expiry is set long
   (e.g. 1 year), overriding the short `contact_code_expiry` default. The `qr`
   subcommand derives the `QrCode` (device pubkey, agent id, inbox topic) from
-  the bundle alone — so the whole sheet can be printed before any Pi ever
+  the bundle alone — so the wall posters can be printed before any Pi ever
   boots — and must encode it **exactly as the app encodes it** (reuse the
   app's serialization; verify against a real phone scan early).
 - **Auto-accept contacts.** Watch the `Notification` stream for
@@ -288,7 +303,7 @@ Keep the single-SD-image philosophy: a new **`larp.env`** file on the FAT boot
 partition selects the station personality, next to the existing `wifi-ap.env`:
 
 ```
-STATION=firefighters     # base | firefighters | hospital | relative-near | relative-far
+STATION=firefighters     # firefighters | hospital | relative-near | relative-far
 ```
 
 New module `nix/larp.nix` (imported by the existing image config) reads it at
@@ -296,12 +311,33 @@ boot (same pattern as `wifi-provision`) and enables per-station services:
 
 | STATION | mailbox | AP (hostapd) | larp-bot | lora-bridge |
 |---|---|---|---|---|
-| `base` | ✓ | ✓ | – | – |
+| *(base: no larp.env)* | ✓ | – (client mode: `wifi.env` names the mAP lite's SSID) | – | – |
 | `firefighters` | ✓ | ✓ | ✓ | – |
 | `hospital` | ✓ | ✓ | ✓ | – |
 | `relative-near` | ✓ | ✓ | – | ✓ |
 | `relative-far` | ✓ | – | ✓ | ✓ |
-| *(no larp.env)* | today's plain mailbox appliance, unchanged |
+
+The base station Pi is exactly today's plain appliance in client mode — no
+`larp.env` needed, only a `wifi.env` pointing at the mAP lite's network.
+
+### Base station: mAP lite + mayor portal
+
+The mAP lite is provisioned with the `../map-lite-portal` repo's tooling; the
+work here is content + one config detail:
+
+- **Mayor page**: a variant of that repo's portal webapp — the town mayor
+  explains the earthquake, asks for help, and walks players through setup
+  (add your partner, scan the four QR posters on the wall, create the group,
+  split up, keep mobile data off). Pure static content served from the
+  router's flash.
+- **Hotspot bypass for the mailbox Pi**: the RouterOS hotspot walls off every
+  client until it logs in. Players get through via the portal's trial-login
+  Connect button, but the base Pi (a headless Wi-Fi client) can't click — its
+  MAC needs an `ip hotspot ip-binding` bypass entry in the provisioning
+  script so phones and mailbox can talk on the LAN.
+- **mDNS across the hotspot**: phones discover the mailbox via
+  `_dashchat._tcp.local.`; verify the hotspot bridge passes multicast between
+  authenticated clients (and doesn't isolate them from each other).
 
 Also per-station: the AP SSID defaults to the station name
 (`SSID=larp-firefighters` etc. via `wifi-ap.env`), so the facilitator can see
@@ -315,7 +351,8 @@ Provisioning flow (all offline, on the laptop): `larp-bot keygen` once per
 character into per-station env dirs (e.g. `env/firefighters/` holding
 `wifi-ap.env`, `larp.env`, `larp-identity.toml`); `just flash` already copies
 an env dir wholesale onto the FAT boot partition; `larp-bot qr` renders the
-printed sheet from the same bundles. `keygen` also emits each character's
+QR wall posters from the same bundles (one per character, hung around the
+base station). `keygen` also emits each character's
 public half; those are assembled into `cast.toml`, which is public and
 **committed to the repo** and baked into the image for every station.
 Bundles themselves are committed nowhere public — they're the characters'
@@ -384,6 +421,10 @@ usually within seconds.
 - **Player phones auto-leaving the AP** — phones drop Wi-Fi networks with no
   internet. The existing captive portal mitigates; test with the actual
   target phones.
+- **Base station hotspot plumbing** — the mailbox Pi must be reachable by
+  phones through the RouterOS hotspot (MAC bypass via ip-binding) and mDNS
+  multicast must cross the hotspot bridge; verify both with real hardware
+  before game day (milestone 2).
 
 ## 8. Implementation milestones
 
@@ -394,13 +435,17 @@ usually within seconds.
    two `dashchat-node` test instances + one local mailbox + one bot; assert a
    mission → courier(simulated) → ack round-trip, then wipe the bot's data
    dir, restart it, and assert the same identity/QR still onboards.
-2. **Nix integration** — `nix/larp.nix`, `larp.env` station switch,
-   per-station env dirs with flashed identity bundles, packages, image build
-   for a bot station; live test: phone joins the AP, scans the printed QR,
-   creates group, gets greeted, receives mission.
+2. **Nix integration + base station** — `nix/larp.nix`, `larp.env` station
+   switch, per-station env dirs with flashed identity bundles, packages,
+   image build for a bot station; the mayor portal page in
+   `../map-lite-portal` plus the Pi's hotspot ip-binding bypass; live tests:
+   phone joins a bot station's AP, scans the printed QR poster, creates
+   group, gets greeted, receives mission — and at the base, portal opens,
+   phone syncs with the base mailbox through the hotspot.
 3. **`lora-bridge`** — Meshtastic bench test, then the bridge protocol with a
    mocked serial transport, then the two relative Pis end-to-end.
 4. **Journalist droplet** — NixOS config on DO against the cloud mailbox;
    test through a real phone hotspot.
 5. **Scenario content + dress rehearsal** — write the four template packs,
-   full 5-Pi field test, print the QR sheet, tune intervals/caps.
+   full field test (5 Pis + mAP lite), print the QR wall posters and finalize
+   the mayor's portal content, tune intervals/caps.
