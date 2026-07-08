@@ -99,7 +99,7 @@ in
     # build a card actually carries (we've debugged a stale reflash before).
     # Bump when changing Wi-Fi behavior.
     environment.etc."dashchat-version".text =
-      "2026-07-08a ap-selfheal: power_save off + AP watchdog + mailbox mDNS bounce on AP start; guard v2 evict below ${toString cfg.apEvictBelowMbit} Mbit/s\n";
+      "2026-07-08b ap-selfheal: watchdog also checks carrier (type-AP-but-DOWN firmware death); power_save off + mailbox mDNS bounce on AP start; guard v2 evict below ${toString cfg.apEvictBelowMbit} Mbit/s\n";
 
     # NetworkManager (rather than standalone wpa_supplicant) because it tolerates
     # being driven imperatively at runtime and handles autoconnect/priority
@@ -144,11 +144,10 @@ in
         # dying by ~5). Retries because hostapd is still bringing the
         # interface up when ExecStartPost fires; brcmfmac may round or clamp
         # the requested txpower value.
-        # if ${pkgs.iw}/bin/iw dev wlan0 set txpower fixed ${toString (cfg.apTxPowerDbm * 100)}; then
         ExecStartPost = [
           (pkgs.writeShellScript "dashchat-ap-radio" ''
             for _ in $(seq 10); do
-              if ${pkgs.iw}/bin/iw dev wlan0 set txpower fixed ${toString (cfg.apTxPowerDbm * 0)}; then
+              if ${pkgs.iw}/bin/iw dev wlan0 set txpower fixed ${toString (cfg.apTxPowerDbm * 100)}; then
                 ${pkgs.iw}/bin/iw dev wlan0 set power_save off || echo "could not disable wlan0 power save" >&2
                 exit 0
               fi
@@ -187,15 +186,25 @@ in
           # restart. --no-block + exit: this unit is bound to hostapd and is
           # stopped mid-restart; hostapd's wants= starts a fresh watchdog once
           # the AP is back up.
+          #
+          # Healthy = type AP *and* carrier up: the firmware has died both by
+          # flipping the iftype to managed and (2026-07-08, hospital Pi) by
+          # keeping "type AP" while the link went NO-CARRIER/DOWN, so either
+          # signal alone misses a failure mode. hostapd raises carrier when
+          # the AP starts beaconing, so operstate is "up" even with 0 clients.
+          healthy() {
+            ${pkgs.iw}/bin/iw dev wlan0 info 2>/dev/null | grep -q '^\s*type AP$' || return 1
+            [ "$(cat /sys/class/net/wlan0/operstate 2>/dev/null)" = up ] || return 1
+          }
           sleep 15
           strikes=0
           while sleep 5; do
-            if ${pkgs.iw}/bin/iw dev wlan0 info 2>/dev/null | grep -q '^\s*type AP$'; then
+            if healthy; then
               strikes=0
             else
               strikes=$((strikes + 1))
               if [ "$strikes" -ge 2 ]; then
-                echo "wlan0 left AP mode; restarting dashchat-hostapd"
+                echo "wlan0 unhealthy (not type AP with carrier up); restarting dashchat-hostapd"
                 ${pkgs.systemd}/bin/systemctl --no-block restart dashchat-hostapd.service
                 exit 0
               fi
