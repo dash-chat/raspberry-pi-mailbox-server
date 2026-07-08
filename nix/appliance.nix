@@ -93,7 +93,7 @@ in
     # Stamp the image so `cat /etc/dashchat-version` over SSH settles which
     # build a card actually carries (we've debugged a stale reflash before).
     # Bump when changing Wi-Fi behavior.
-    environment.etc."dashchat-version".text = "2026-07-07c open-ap: empty PASSWORD= line hosts an open network; guard v2 evict below ${toString cfg.apEvictBelowMbit} Mbit/s\n";
+    environment.etc."dashchat-version".text = "2026-07-08a ap-selfheal: power_save off + AP watchdog + mailbox mDNS bounce on AP start; guard v2 evict below ${toString cfg.apEvictBelowMbit} Mbit/s\n";
 
     # NetworkManager (rather than standalone wpa_supplicant) because it tolerates
     # being driven imperatively at runtime and handles autoconnect/priority
@@ -107,6 +107,13 @@ in
     # with an ip-binding bypass for a headless mailbox Pi.
     networking.networkmanager.wifi.macAddress = "permanent";
 
+    # NM enables Wi-Fi power save while it still manages wlan0 during early
+    # boot (dmesg: repeated "power save enabled" right before the brcmfmac
+    # firmware dies ~13 s in, killing the AP under hostapd). Power save on a
+    # brcmfmac AP is a known beacon/AP-drop cause — keep it off everywhere;
+    # dashchat-ap-radio below re-asserts it on every hostapd start.
+    networking.networkmanager.wifi.powersave = false;
+
     # --- AP mode: hostapd, not NetworkManager ----------------------------------
     # NM's AP mode can't express the range-limiting knobs we want (data-rate
     # floor, RSSI association gate), so when this Pi hosts the mesh itself,
@@ -116,21 +123,74 @@ in
       description = "hostapd for the Pi-hosted mesh AP (range-limited)";
       # No wantedBy: started (and stopped) only by wifi-provision, so a card
       # that switches roles between boots never races a stale AP.
-      wants = [ "dashchat-ap-guard.service" ];
+      wants = [ "dashchat-ap-guard.service" "dashchat-ap-watchdog.service" ];
       serviceConfig = {
         ExecStartPre = pkgs.writeShellScript "dashchat-ap-addr" ''
           ${pkgs.iproute2}/bin/ip addr replace ${cfg.apAddress}/24 dev wlan0
         '';
         ExecStart = "${pkgs.hostapd}/bin/hostapd /run/dashchat-ap/hostapd.conf";
-        # Clamp radio power once the AP is up. Retries because hostapd is still
-        # bringing the interface up when ExecStartPost fires; brcmfmac may
-        # round or clamp the requested value.
-        ExecStartPost = pkgs.writeShellScript "dashchat-ap-txpower" ''
-          for _ in $(seq 10); do
-            ${pkgs.iw}/bin/iw dev wlan0 set txpower fixed ${toString (cfg.apTxPowerDbm * 100)} && exit 0
-            sleep 1
+        # Radio setup once the AP is up: clamp tx power and disable power save
+        # (power save on a brcmfmac AP silently kills beaconing minutes in —
+        # verified live 2026-07-08: with it off the AP stayed up 40+ min vs
+        # dying by ~5). Retries because hostapd is still bringing the
+        # interface up when ExecStartPost fires; brcmfmac may round or clamp
+        # the requested txpower value.
+        ExecStartPost = [
+          (pkgs.writeShellScript "dashchat-ap-radio" ''
+            for _ in $(seq 10); do
+              if ${pkgs.iw}/bin/iw dev wlan0 set txpower fixed ${toString (cfg.apTxPowerDbm * 100)}; then
+                ${pkgs.iw}/bin/iw dev wlan0 set power_save off || echo "could not disable wlan0 power save" >&2
+                exit 0
+              fi
+              sleep 1
+            done
+            echo "could not clamp wlan0 txpower" >&2
+          '')
+          # The mailbox's in-process mDNS responder enumerates interfaces at
+          # startup: if it came up while wlan0 was down (early-boot firmware
+          # crash) or before the AP address existed, it announces nothing on
+          # the mesh and phones can't discover the mailbox. Bounce it on every
+          # AP (re)start; no-op when it isn't running yet (boot ordering
+          # starts it later, with the AP already up). --no-block: don't hold
+          # hostapd's start job on the mailbox restart.
+          "${pkgs.systemd}/bin/systemctl --no-block try-restart dashchat-mailbox.service"
+        ];
+        Restart = "on-failure";
+        RestartSec = 2;
+      };
+    };
+
+    # The brcmfmac firmware occasionally resets underneath hostapd (observed
+    # ~13 s after boot and sporadically minutes later): wlan0 silently
+    # degrades from AP to managed/down while hostapd keeps reporting
+    # AP-ENABLED, so Restart=on-failure never fires and the SSID just
+    # vanishes. hostapd survives the reset unaware; restarting it rebuilds
+    # the AP. This watchdog polls the interface and bounces hostapd when it
+    # leaves AP mode — without it a cold boot usually comes up with a dead AP.
+    systemd.services.dashchat-ap-watchdog = {
+      description = "Restart the mesh AP when the Wi-Fi firmware silently drops it";
+      bindsTo = [ "dashchat-hostapd.service" ];
+      after = [ "dashchat-hostapd.service" ];
+      serviceConfig = {
+        ExecStart = pkgs.writeShellScript "dashchat-ap-watchdog" ''
+          # Two consecutive bad polls so a transient hiccup doesn't trigger a
+          # restart. --no-block + exit: this unit is bound to hostapd and is
+          # stopped mid-restart; hostapd's wants= starts a fresh watchdog once
+          # the AP is back up.
+          sleep 15
+          strikes=0
+          while sleep 5; do
+            if ${pkgs.iw}/bin/iw dev wlan0 info 2>/dev/null | grep -q '^\s*type AP$'; then
+              strikes=0
+            else
+              strikes=$((strikes + 1))
+              if [ "$strikes" -ge 2 ]; then
+                echo "wlan0 left AP mode; restarting dashchat-hostapd"
+                ${pkgs.systemd}/bin/systemctl --no-block restart dashchat-hostapd.service
+                exit 0
+              fi
+            fi
           done
-          echo "could not clamp wlan0 txpower" >&2
         '';
         Restart = "on-failure";
         RestartSec = 2;
