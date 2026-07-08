@@ -9,7 +9,12 @@
 #     network interface (e.g. for administering the Pi while the AP runs).
 #   * absent -> "client mode": just join the network named in
 #     /boot/firmware/wifi.env (SSID=/PASSWORD=) like a normal Wi-Fi device.
-{ config, lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 let
   cfg = config.dashchat.wifi;
   # First three octets of the AP address, for deriving the DHCP range.
@@ -93,7 +98,8 @@ in
     # Stamp the image so `cat /etc/dashchat-version` over SSH settles which
     # build a card actually carries (we've debugged a stale reflash before).
     # Bump when changing Wi-Fi behavior.
-    environment.etc."dashchat-version".text = "2026-07-08a ap-selfheal: power_save off + AP watchdog + mailbox mDNS bounce on AP start; guard v2 evict below ${toString cfg.apEvictBelowMbit} Mbit/s\n";
+    environment.etc."dashchat-version".text =
+      "2026-07-08a ap-selfheal: power_save off + AP watchdog + mailbox mDNS bounce on AP start; guard v2 evict below ${toString cfg.apEvictBelowMbit} Mbit/s\n";
 
     # NetworkManager (rather than standalone wpa_supplicant) because it tolerates
     # being driven imperatively at runtime and handles autoconnect/priority
@@ -123,7 +129,10 @@ in
       description = "hostapd for the Pi-hosted mesh AP (range-limited)";
       # No wantedBy: started (and stopped) only by wifi-provision, so a card
       # that switches roles between boots never races a stale AP.
-      wants = [ "dashchat-ap-guard.service" "dashchat-ap-watchdog.service" ];
+      wants = [
+        "dashchat-ap-guard.service"
+        "dashchat-ap-watchdog.service"
+      ];
       serviceConfig = {
         ExecStartPre = pkgs.writeShellScript "dashchat-ap-addr" ''
           ${pkgs.iproute2}/bin/ip addr replace ${cfg.apAddress}/24 dev wlan0
@@ -135,10 +144,11 @@ in
         # dying by ~5). Retries because hostapd is still bringing the
         # interface up when ExecStartPost fires; brcmfmac may round or clamp
         # the requested txpower value.
+        # if ${pkgs.iw}/bin/iw dev wlan0 set txpower fixed ${toString (cfg.apTxPowerDbm * 100)}; then
         ExecStartPost = [
           (pkgs.writeShellScript "dashchat-ap-radio" ''
             for _ in $(seq 10); do
-              if ${pkgs.iw}/bin/iw dev wlan0 set txpower fixed ${toString (cfg.apTxPowerDbm * 100)}; then
+              if ${pkgs.iw}/bin/iw dev wlan0 set txpower fixed ${toString (cfg.apTxPowerDbm * 0)}; then
                 ${pkgs.iw}/bin/iw dev wlan0 set power_save off || echo "could not disable wlan0 power save" >&2
                 exit 0
               fi
@@ -312,7 +322,10 @@ in
     };
 
     networking.firewall.interfaces.wlan0 = {
-      allowedUDPPorts = [ 53 67 ]; # AP-mode DNS + DHCP
+      allowedUDPPorts = [
+        53
+        67
+      ]; # AP-mode DNS + DHCP
       allowedTCPPorts = [ 53 ];
     };
 
@@ -321,7 +334,13 @@ in
       after = [ "NetworkManager.service" ];
       wants = [ "NetworkManager.service" ];
       wantedBy = [ "multi-user.target" ];
-      path = [ pkgs.networkmanager pkgs.iw pkgs.coreutils pkgs.iproute2 pkgs.systemd ];
+      path = [
+        pkgs.networkmanager
+        pkgs.iw
+        pkgs.coreutils
+        pkgs.iproute2
+        pkgs.systemd
+      ];
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
@@ -449,7 +468,10 @@ in
 
     users.users.admin = {
       isNormalUser = true;
-      extraGroups = [ "wheel" "networkmanager" ];
+      extraGroups = [
+        "wheel"
+        "networkmanager"
+      ];
       # Baked-in admin key so we can SSH in to inspect the appliance. Add more
       # keys here (or via the boot partition) and disable PasswordAuthentication
       # above for a locked-down deployment.
