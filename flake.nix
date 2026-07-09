@@ -71,8 +71,6 @@
         packages = with nixpkgs.legacyPackages.x86_64-linux; [
           just # flashing recipes
           zstd # decompress the built .img.zst
-          nodejs # captive-portal (portal/) development
-          pnpm # portal package manager
         ];
       };
 
@@ -81,8 +79,6 @@
         # The flashable Raspberry Pi SD image. Built for aarch64; on an x86_64
         # builder this needs `boot.binfmt.emulatedSystems = [ "aarch64-linux" ]`.
         sdImage = self.nixosConfigurations.mailbox-pi.config.system.build.sdImage;
-        # The captive-portal SPA (portal/), buildable standalone for iteration.
-        portal = nixpkgs.legacyPackages.x86_64-linux.callPackage ./nix/portal.nix { };
       }
       // mkScripts nixpkgs.legacyPackages.x86_64-linux;
 
@@ -90,7 +86,6 @@
         default = dash-chat.packages.aarch64-linux.replicating-local-mailbox-server;
         # Same image, built natively on an aarch64 builder (e.g. CI's arm runner).
         sdImage = self.nixosConfigurations.mailbox-pi.config.system.build.sdImage;
-        portal = nixpkgs.legacyPackages.aarch64-linux.callPackage ./nix/portal.nix { };
       }
       // mkScripts nixpkgs.legacyPackages.aarch64-linux;
 
@@ -115,7 +110,6 @@
           }
           ./nix/nixos-module.nix
           ./nix/appliance.nix
-          ./nix/captive-portal.nix
           ./nix/rpi.nix
           ({ ... }: {
             services.dashchat-mailbox.package =

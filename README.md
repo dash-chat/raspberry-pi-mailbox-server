@@ -132,39 +132,6 @@ interface, handy for SSHing into the Pi while the AP runs.
 
 Change the SSID/password by editing `wifi-ap.env` and rebooting.
 
-### Captive portal (AP mode)
-
-When the Pi itself hosts the mesh, devices that join get the OS **"sign in to
-network"** screen showing a welcome page: what this network is, live mailbox
-status (via the mailbox's `/health`), and how to get started with the Dash Chat
-app. Since an AP-mode Pi has no uplink, the page also tells users it's safe to
-dismiss the sign-in screen and stay on the mesh.
-
-It works the standard captive-portal way: the AP's DHCP/DNS (NetworkManager's
-shared-mode dnsmasq) resolves **every** name to the Pi, nginx answers the OS
-connectivity probes (`connectivitycheck.gstatic.com`, `captive.apple.com`,
-`msftconnecttest.com`, …) with a redirect to the portal, and the unexpected
-answer is what makes phones pop the sign-in screen. A NAT redirect also
-catches clients with hardcoded DNS servers. See
-[`nix/captive-portal.nix`](nix/captive-portal.nix); disable with
-`dashchat.captivePortal.enable = false`.
-
-The page itself is a **Svelte + TypeScript SPA** in [`portal/`](portal/)
-(Vite, pnpm), packaged by [`nix/portal.nix`](nix/portal.nix) and served by
-nginx at the AP address (`10.42.0.1`, pinned via `dashchat.wifi.apAddress`)
-and `http://dashchat-mailbox.local`. To develop it:
-
-```sh
-cd portal
-pnpm install
-pnpm dev     # dev server; /api/* proxies to a local mailbox on :3000
-pnpm check   # svelte-check / TypeScript
-```
-
-After changing `pnpm-lock.yaml`, refresh the pinned dep hash in
-[`nix/portal.nix`](nix/portal.nix) (set it to `lib.fakeHash`, `nix build
-.#portal`, copy the real hash from the error).
-
 **Client mode (`wifi-ap.env` absent).** No network is generated — the Pi just
 joins an existing one like a normal device. Put its credentials in a
 **`wifi.env`** on the boot partition instead:

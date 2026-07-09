@@ -51,7 +51,7 @@ in
       description = ''
         IPv4 address the Pi takes on wlan0 when hosting the mesh (AP mode).
         Pinned (rather than NetworkManager's shared-mode default) so the
-        captive portal's nginx/DNS config can reference it deterministically.
+        AP's DHCP/DNS config can reference it deterministically.
       '';
     };
   };
@@ -63,7 +63,7 @@ in
     # build a card actually carries (we've debugged a stale reflash before).
     # Bump when changing Wi-Fi behavior.
     environment.etc."dashchat-version".text =
-      "2026-07-09a no-range-limit: drop tx-power clamp, rate floor, RSSI gate and ap-guard eviction; AP radiates at default power\n";
+      "2026-07-09b: drop range limiting (tx clamp, rate floor, RSSI gate, ap-guard) and the captive portal; AP radiates at default power, plain DHCP/DNS\n";
 
     # NetworkManager (rather than standalone wpa_supplicant) because it tolerates
     # being driven imperatively at runtime and handles autoconnect/priority
@@ -179,7 +179,7 @@ in
     };
 
     # DHCP + DNS for AP clients (NM's shared mode provided these; hostapd does
-    # not). The captive portal drops its wildcard-DNS file into dnsmasq.d.
+    # not).
     environment.etc."dashchat-ap/dnsmasq.conf".text = ''
       port=53
       interface=wlan0
@@ -189,11 +189,7 @@ in
       dhcp-option=option:router,${cfg.apAddress}
       dhcp-option=option:dns-server,${cfg.apAddress}
       dhcp-authoritative
-      conf-dir=/etc/dashchat-ap/dnsmasq.d/,*.conf
     '';
-    # Keep the conf-dir present even with the captive portal disabled, so
-    # dnsmasq doesn't fail on a missing directory.
-    environment.etc."dashchat-ap/dnsmasq.d/.keep".text = "";
 
     systemd.services.dashchat-ap-dnsmasq = {
       description = "DHCP/DNS for the Pi-hosted mesh AP";
