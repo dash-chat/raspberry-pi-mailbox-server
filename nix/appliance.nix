@@ -201,6 +201,26 @@ in
       };
     };
 
+    # The mailbox's mDNS responder enumerates interface addresses once at
+    # startup. The hostapd ExecStartPost bounce above covers AP (re)starts,
+    # but on the plain boot path the mailbox can still first-start while
+    # wlan0 is address-less (network-online is satisfied by ethernet
+    # alone) and announce nothing usable on the mesh — wifi works but
+    # phones never find the mailbox (diagnosed 2026-07-10). Hold the start
+    # until wlan0 holds an IPv4; give up after 30 s so cards without wifi,
+    # or in client mode with no network in range, still boot.
+    systemd.services.dashchat-mailbox = {
+      after = [ "dashchat-hostapd.service" ];
+      preStart = ''
+        [ -e /sys/class/net/wlan0 ] || exit 0
+        for _ in $(${pkgs.coreutils}/bin/seq 30); do
+          [ -z "$(${pkgs.iproute2}/bin/ip -4 -o addr show dev wlan0)" ] || exit 0
+          ${pkgs.coreutils}/bin/sleep 1
+        done
+        echo "wlan0 still has no IPv4 after 30s; starting anyway" >&2
+      '';
+    };
+
     networking.firewall.interfaces.wlan0 = {
       allowedUDPPorts = [
         53

@@ -36,9 +36,10 @@
       ...
     }:
     let
-      # The flashing helpers (scripts/), packaged so consumers of this flake
-      # (e.g. the LARP repo) can reuse them with pinned dependencies.
-      # writeShellApplication also shellchecks them at build time.
+      # The flashing and cable-debugging helpers (scripts/), packaged so
+      # consumers of this flake (e.g. the LARP repo) can reuse them with
+      # pinned dependencies. writeShellApplication also shellchecks them at
+      # build time.
       mkScripts =
         pkgs:
         let
@@ -47,6 +48,15 @@
             coreutils
             gnused
             gawk
+          ];
+          # For the direct-ethernet helpers: neighbor/link inspection + ssh.
+          etherInputs = with pkgs; [
+            coreutils
+            gawk
+            gnugrep
+            iproute2
+            iputils # ping
+            openssh
           ];
         in
         rec {
@@ -61,6 +71,25 @@
             name = "flash-sd-image";
             runtimeInputs = runtimeInputs ++ [ detect-sd-card ];
             text = builtins.readFile ./scripts/flash-sd-image.sh;
+          };
+          # Discover a Pi on a direct ethernet cable; prints its address.
+          find-pi = pkgs.writeShellApplication {
+            name = "find-pi";
+            runtimeInputs = etherInputs;
+            text = builtins.readFile ./scripts/find-pi.sh;
+          };
+          # SSH into the Pi on the cable (args become the remote command).
+          ethernet-ssh = pkgs.writeShellApplication {
+            name = "ethernet-ssh";
+            runtimeInputs = etherInputs ++ [ find-pi ];
+            text = builtins.readFile ./scripts/ethernet-ssh.sh;
+          };
+          # Push this machine's time to the Pi on the cable (writes the RTC
+          # when present).
+          ethernet-set-time = pkgs.writeShellApplication {
+            name = "ethernet-set-time";
+            runtimeInputs = etherInputs ++ [ find-pi ];
+            text = builtins.readFile ./scripts/ethernet-set-time.sh;
           };
         };
     in
