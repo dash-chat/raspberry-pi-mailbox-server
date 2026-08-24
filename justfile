@@ -2,11 +2,11 @@
 #
 # Run with just (not bundled in the flake): `nix run nixpkgs#just -- <recipe>`.
 
-# The flashable image (built per the README) and the folder whose contents are
-# dropped onto the image's FAT boot partition (/boot/firmware) — e.g.
-# wifi-ap.env, wifi.env.
+# The flashable image (built per the README). Set env_dir to a folder whose
+# contents should be dropped onto the image's FAT boot partition
+# (/boot/firmware), e.g. `just --set env_dir mydir flash`; empty = skip.
 image := "mailbox.img"
-env_dir := "env"
+env_dir := ""
 
 # Show available recipes.
 _default:
@@ -19,13 +19,20 @@ _default:
 build:
     #!/usr/bin/env bash
     set -euo pipefail
-    nix build github:dash-chat/raspberry-pi-mailbox-server#sdImage -L --accept-flake-config
+    nix build .#sdImage -L --accept-flake-config
     zst="$(echo result/sd-image/*.img.zst)"
     [ -f "$zst" ] || { echo "no *.img.zst under result/sd-image/ — did the build succeed?"; exit 1; }
     echo ">> decompressing $zst -> {{image}}"
     rm -f "{{image}}"
     zstd -d "$zst" -o "{{image}}"
     ls -lh "{{image}}"
+
+# End-to-end tests against a real, already-flashed Pi on the ethernet cable.
+# No args runs everything, including the ~20-minute longevity soak; pass a
+# subset to run less, e.g. `just e2e health blips blobs mdns`. Override the
+# soak length with E2E_MINUTES=<minutes>.
+e2e *tests:
+    nix run .#e2e-test -- {{tests}}
 
 # List candidate block devices, to pick the SD-card target for `flash`.
 devices:

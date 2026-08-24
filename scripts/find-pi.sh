@@ -3,10 +3,10 @@
 # server on the link), then IPv6 link-local all-nodes ping; each candidate
 # is verified with an ssh probe as admin@. Progress goes to stderr, only
 # the address to stdout, so callers can `pi=$(find-pi)`. Optional
-# argument: the wired interface (auto-detected otherwise). Caveat: with no
-# DHCP server on the cable the Pi's link only stays up ~2 min after boot
-# (NetworkManager thrashes on the leaseless DHCP client) — power-cycle the
-# Pi and retry shortly after it boots.
+# argument: the wired interface (auto-detected otherwise). On a leaseless
+# direct cable the Pi's dhcpcd falls back to an IPv4 link-local address
+# (169.254.x.y) and keeps the link up, so IPv6 link-local discovery below
+# works indefinitely.
 
 iface="${1:-}"
 ssh_opts=(-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes -o ConnectTimeout=4 -o LogLevel=ERROR)

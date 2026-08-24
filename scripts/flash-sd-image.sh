@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Flash an SD-card image and optionally copy env files onto its FAT boot
-# partition (where the appliance reads wifi-ap.env & friends).
+# Flash an SD-card image and optionally copy extra files onto its FAT boot
+# partition.
 #
 #   flash-sd-image.sh <image> [device] [env_dir]
 #
