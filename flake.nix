@@ -91,13 +91,16 @@
             runtimeInputs = etherInputs ++ [ find-pi ];
             text = builtins.readFile ./scripts/ethernet-set-time.sh;
           };
-          # Configure a MikroTik mAP lite as a station AP over ssh: WPA2 with
-          # the given SSID/password, ether1 bridged into the LAN. `just setup-maplite`.
+          # Configure a MikroTik mAP lite as a station AP: joins the unit's
+          # Wi-Fi (nmcli), then over ssh sets up WPA2 with the target
+          # SSID/password and bridges ether1 into the LAN. `just setup-maplite`.
           setup-maplite = pkgs.writeShellApplication {
             name = "setup-maplite";
             runtimeInputs = [
               pkgs.openssh
               pkgs.coreutils
+              pkgs.networkmanager # nmcli, driving the host's NM daemon
+              pkgs.iputils # ping
             ];
             text = builtins.readFile ./scripts/setup-maplite.sh;
           };

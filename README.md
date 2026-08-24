@@ -21,14 +21,18 @@ over USB-A — [`nix/rpi.nix`](nix/rpi.nix) sets `usb_max_current_enable=1` in
 Pi 5 otherwise caps USB-A output at 600 mA. Phones on the mAP lite's Wi-Fi and
 the Pi share one LAN, so mDNS discovery just works.
 
-Configure each unit with `just setup-maplite <ssid> <password>`
-([`scripts/setup-maplite.sh`](scripts/setup-maplite.sh)): it sets up WPA2 with
-the given credentials and bridges the ethernet port into the LAN — the factory
-default has it as firewalled WAN, which would hide the Pi from the phones.
-First time: join the unit's default `MikroTik-XXXXXX` Wi-Fi (WPA2 password on
-the sticker of newer units, open on older) and run it (it prompts for the
-unit's admin password — also on the sticker, empty on older units). Keep the SSID/password identical across stations so phones that
-joined one auto-join the others.
+Configure each unit with
+`just setup-maplite <unit-ssid> <unit-wifi-password> <ssid> <password>`
+([`scripts/setup-maplite.sh`](scripts/setup-maplite.sh)). The first pair is
+the unit's *current* Wi-Fi — factory units broadcast `MikroTik-XXXXXX` with
+the WPA2 password on the device sticker (pass `''` for older open units).
+The script joins that network, sets up WPA2 with the target `<ssid>`
+`<password>`, bridges the ethernet port into the LAN (the factory default has
+it as firewalled WAN, which would hide the Pi from the phones), then rejoins
+the target Wi-Fi to verify convergence. It prompts for the unit's admin
+password (also on the sticker; empty on older units). Keep the target
+SSID/password identical across stations so phones that joined one auto-join
+the others.
 
 The Pi's own radio is unused: earlier revisions hosted the AP on the Pi's
 brcmfmac chip, which was the main source of field failures (see git history for

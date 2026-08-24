@@ -27,15 +27,16 @@ build:
     zstd -d "$zst" -o "{{image}}"
     ls -lh "{{image}}"
 
-# Configure a MikroTik mAP lite as the station AP: WPA2 wifi + its ethernet
-# port bridged into the LAN (the factory default has it as firewalled WAN,
-# which would hide the Pi from the phones). First-time: join the unit's
-# default MikroTik-XXXXXX wifi (WPA2 password on the sticker of newer units,
-# open on older), then run this; it prompts for the unit's admin password
-# (also on the sticker; empty on older units).
-# Usage: just setup-maplite <ssid> <password> [host]   (host defaults to 192.168.88.1)
-setup-maplite ssid password *args:
-    nix run .#setup-maplite -- "{{ssid}}" "{{password}}" {{args}}
+# Configure a MikroTik mAP lite as the station AP: joins the unit's current
+# wifi (factory: MikroTik-XXXXXX, WPA2 password on the sticker of newer
+# units — pass '' for older open ones), then sets up WPA2 with the target
+# ssid/password and bridges the ethernet port into the LAN (the factory
+# default has it as firewalled WAN, which would hide the Pi from the
+# phones). Prompts for the unit's admin password (also on the sticker;
+# empty on older units), and rejoins the target wifi to verify convergence.
+# Usage: just setup-maplite <unit-ssid> <unit-wifi-password> <ssid> <password> [host]
+setup-maplite unit_ssid unit_password ssid password *args:
+    nix run .#setup-maplite -- "{{unit_ssid}}" "{{unit_password}}" "{{ssid}}" "{{password}}" {{args}}
 
 # End-to-end tests against a real, already-flashed Pi on the ethernet cable.
 # No args runs everything, including the ~20-minute longevity soak; pass a
