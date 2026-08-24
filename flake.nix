@@ -20,7 +20,7 @@
     # bootloader. It pins its own nixpkgs, which the system is built against.
     nixos-raspberrypi.url = "github:nvmd/nixos-raspberrypi/main";
 
-    dash-chat.url = "github:dash-chat/dash-chat/lms-docker-image";
+    dash-chat.url = "github:dash-chat/dash-chat/develop";
 
     # Reuse the nixpkgs nixos-raspberrypi already pins (no extra download); used
     # only for the devShell tooling.
@@ -90,6 +90,16 @@
             name = "ethernet-set-time";
             runtimeInputs = etherInputs ++ [ find-pi ];
             text = builtins.readFile ./scripts/ethernet-set-time.sh;
+          };
+          # Configure a MikroTik mAP lite as a station AP over ssh: WPA2 with
+          # the given SSID/password, ether1 bridged into the LAN. `just setup-maplite`.
+          setup-maplite = pkgs.writeShellApplication {
+            name = "setup-maplite";
+            runtimeInputs = [
+              pkgs.openssh
+              pkgs.coreutils
+            ];
+            text = builtins.readFile ./scripts/setup-maplite.sh;
           };
           # End-to-end tests against a real, already-flashed mailbox Pi on the
           # ethernet cable: scripts/e2e/, one script per test, all shipped
