@@ -85,7 +85,7 @@ just e2e health blips blobs mdns     # just the fast tests
 E2E_MINUTES=5 just e2e longevity     # shorter soak
 ```
 
-The tests ([`scripts/e2e-test.sh`](scripts/e2e-test.sh)) discover the Pi on the
+The tests ([`scripts/e2e/`](scripts/e2e), one script per test) discover the Pi on the
 cable (same mechanism as `ethernet-ssh`) and exercise the mailbox exactly like
 the Dash Chat app does, over plain HTTP + mDNS:
 
