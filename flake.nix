@@ -91,19 +91,6 @@
             runtimeInputs = etherInputs ++ [ find-pi ];
             text = builtins.readFile ./scripts/ethernet-set-time.sh;
           };
-          # Configure a MikroTik mAP lite as a station AP: joins the unit's
-          # Wi-Fi (nmcli), then over ssh sets up WPA2 with the target
-          # SSID/password and bridges ether1 into the LAN. `just setup-maplite`.
-          setup-maplite = pkgs.writeShellApplication {
-            name = "setup-maplite";
-            runtimeInputs = [
-              pkgs.openssh
-              pkgs.coreutils
-              pkgs.networkmanager # nmcli, driving the host's NM daemon
-              pkgs.iputils # ping
-            ];
-            text = builtins.readFile ./scripts/setup-maplite.sh;
-          };
           # End-to-end tests against a real, already-flashed mailbox Pi on the
           # ethernet cable: scripts/e2e/, one script per test, all shipped
           # inside this one package. `just e2e`.

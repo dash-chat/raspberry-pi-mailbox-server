@@ -27,16 +27,15 @@ build:
     zstd -d "$zst" -o "{{image}}"
     ls -lh "{{image}}"
 
-# Configure a MikroTik mAP lite as the station AP: joins the unit's current
-# wifi (factory: MikroTik-XXXXXX, WPA2 password on the sticker of newer
-# units — pass '' for older open ones), then sets up WPA2 with the target
-# ssid/password and bridges the ethernet port into the LAN (the factory
-# default has it as firewalled WAN, which would hide the Pi from the
-# phones). Prompts for the unit's admin password (also on the sticker;
-# empty on older units), and rejoins the target wifi to verify convergence.
-# Usage: just setup-maplite <unit-ssid> <unit-wifi-password> <ssid> <password> [host]
-setup-maplite unit_ssid unit_password ssid password *args:
-    nix run .#setup-maplite -- "{{unit_ssid}}" "{{unit_password}}" "{{ssid}}" "{{password}}" {{args}}
+# Substitutes the system toplevel from the binary cache (only the store paths
+# that changed get downloaded), copies only what the Pi is missing over the
+# cable, and switches it to the new generation. Without local aarch64
+# emulation this needs CI to have built the exact working tree first (commit,
+# push, wait for the build). Reflash only for partition-layout or
+# boot-breaking changes.
+# Deploy the current config to a running, already-flashed Pi (no reflash).
+deploy *args:
+    ./scripts/ethernet-deploy.sh {{args}}
 
 # End-to-end tests against a real, already-flashed Pi on the ethernet cable.
 # No args runs everything, including the ~20-minute longevity soak; pass a

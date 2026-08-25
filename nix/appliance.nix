@@ -33,6 +33,12 @@
   };
   security.sudo.wheelNeedsPassword = lib.mkDefault false;
 
+  # Let admin push store paths over ssh regardless of signatures, so
+  # `just deploy` (nix copy over the ethernet cable) can update the system
+  # without reflashing. Grants nothing new: admin already has passwordless
+  # sudo.
+  nix.settings.trusted-users = [ "admin" ];
+
   documentation.enable = lib.mkDefault false;
   system.stateVersion = lib.mkDefault "25.05";
 }

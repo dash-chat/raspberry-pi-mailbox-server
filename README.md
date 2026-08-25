@@ -21,18 +21,8 @@ over USB-A — [`nix/rpi.nix`](nix/rpi.nix) sets `usb_max_current_enable=1` in
 Pi 5 otherwise caps USB-A output at 600 mA. Phones on the mAP lite's Wi-Fi and
 the Pi share one LAN, so mDNS discovery just works.
 
-Configure each unit with
-`just setup-maplite <unit-ssid> <unit-wifi-password> <ssid> <password>`
-([`scripts/setup-maplite.sh`](scripts/setup-maplite.sh)). The first pair is
-the unit's *current* Wi-Fi — factory units broadcast `MikroTik-XXXXXX` with
-the WPA2 password on the device sticker (pass `''` for older open units).
-The script joins that network, sets up WPA2 with the target `<ssid>`
-`<password>`, bridges the ethernet port into the LAN (the factory default has
-it as firewalled WAN, which would hide the Pi from the phones), then rejoins
-the target Wi-Fi to verify convergence. It prompts for the unit's admin
-password (also on the sticker; empty on older units). Keep the target
-SSID/password identical across stations so phones that joined one auto-join
-the others.
+Configuring the mAP lite itself (SSID, WPA2 password, bridging its ethernet
+port into the LAN) is out of scope for this repo.
 
 The Pi's own radio is unused: earlier revisions hosted the AP on the Pi's
 brcmfmac chip, which was the main source of field failures (see git history for
@@ -87,6 +77,37 @@ just flash           # auto-detect the card and flash (asks before erasing)
 
 or by hand: `zstd -d result/sd-image/*.img.zst -o mailbox.img`, then
 `sudo dd if=mailbox.img of=/dev/sdX bs=4M conv=fsync status=progress`.
+
+## Iterating: deploy over the cable, don't reflash
+
+The image is one monolithic store path, so after any change `nix build`
+re-downloads all ~1.3 GB of it from the cache. For iteration, treat the image
+as a provisioning tool only and push changes to an already-flashed Pi instead
+([`scripts/ethernet-deploy.sh`](scripts/ethernet-deploy.sh)):
+
+```sh
+just deploy          # substitute toplevel, copy missing paths, switch
+```
+
+This builds the system *toplevel* (whose closure is many small store paths, so
+only what changed is downloaded from the cache), copies just the paths the Pi
+is missing over the cable, and switches it to the new generation —
+kernel/`config.txt` changes included, via the generational bootloader. Typical
+config tweaks transfer megabytes, not the whole image.
+
+Two prerequisites:
+
+- **The toplevel must be buildable here.** On an x86_64 host without aarch64
+  binfmt that means: commit, push, wait for CI to populate the cache, then
+  `just deploy`. With `boot.binfmt.emulatedSystems = [ "aarch64-linux" ]` you
+  can skip CI entirely.
+- **The Pi must trust `admin` for `nix copy`** (`nix.settings.trusted-users`
+  in [`nix/appliance.nix`](nix/appliance.nix)). Pis flashed before that
+  setting existed need one final reflash to pick it up.
+
+Reflash only for changes a running system can't switch into: partition layout,
+or experiments that might break boot (a bad deploy can otherwise be rolled
+back from the bootloader's generation menu).
 
 ## Verifying: e2e tests against a real Pi
 
