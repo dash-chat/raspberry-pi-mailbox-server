@@ -89,6 +89,10 @@ as a provisioning tool only and push changes to an already-flashed Pi instead
 just deploy          # substitute toplevel, copy missing paths, switch
 ```
 
+Like the other helpers it's a packaged flake app, so downstream repos can
+reuse it with their own flake and configuration name:
+`nix run <this-flake>#ethernet-deploy -- . my-station`.
+
 This builds the system *toplevel* (whose closure is many small store paths, so
 only what changed is downloaded from the cache), copies just the paths the Pi
 is missing over the cable, and switches it to the new generation —

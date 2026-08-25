@@ -91,6 +91,17 @@
             runtimeInputs = etherInputs ++ [ find-pi ];
             text = builtins.readFile ./scripts/ethernet-set-time.sh;
           };
+          # Deploy the configuration to a running Pi on the cable without
+          # reflashing: substitute the system toplevel from the binary cache,
+          # copy only the store paths the Pi is missing, switch generations.
+          # `just deploy`; downstream flakes pass their own flake ref and
+          # nixosConfiguration name as arguments. Drives the invoking host's
+          # own `nix` (daemon, flake config), so nix isn't a pinned input.
+          ethernet-deploy = pkgs.writeShellApplication {
+            name = "ethernet-deploy";
+            runtimeInputs = etherInputs ++ [ find-pi ];
+            text = builtins.readFile ./scripts/ethernet-deploy.sh;
+          };
           # End-to-end tests against a real, already-flashed mailbox Pi on the
           # ethernet cable: scripts/e2e/, one script per test, all shipped
           # inside this one package. `just e2e`.

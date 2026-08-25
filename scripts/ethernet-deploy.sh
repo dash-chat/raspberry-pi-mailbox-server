@@ -1,4 +1,3 @@
-#!/usr/bin/env bash
 # Deploy the configuration to a running Pi on the direct ethernet cable,
 # without reflashing: build (in practice: substitute from the binary cache)
 # the system toplevel, copy only the store paths the Pi is missing, and
@@ -6,16 +5,16 @@
 # instead of the full ~1.3 GB image; reflashing is only needed for changes
 # the running system can't switch into (partition layout, broken boots).
 #
-# Not packaged in the flake like its siblings: it drives the host's own
-# `nix` (daemon, flake config) and ssh, so pinned deps buy nothing.
+# Unlike its siblings, `nix` itself is deliberately NOT a pinned runtime
+# input: the script drives the invoking host's daemon and flake config.
 #
-# Usage: ethernet-deploy.sh [flake-ref] [nixos-config-name]
-# Defaults: flake-ref '.', config name 'mailbox-pi'.
+# Usage: ethernet-deploy [flake-ref] [nixos-config-name]
+# Defaults: flake-ref '.', config name 'mailbox-pi' — downstream flakes pass
+# their own, e.g. `nix run <this-flake>#ethernet-deploy -- . my-station`.
 #
 # This host is typically x86_64 while the Pi is aarch64: without binfmt
 # emulation the toplevel must be substitutable, i.e. CI must have built and
 # pushed the exact working-tree contents (commit, push, wait for the build).
-set -euo pipefail
 
 flake="${1:-.}"
 config="${2:-mailbox-pi}"
@@ -29,7 +28,7 @@ if ! toplevel=$(nix build --no-link --print-out-paths --accept-flake-config "$at
   exit 1
 fi
 
-pi="$(bash "$(dirname "$0")/find-pi.sh")"
+pi="$(find-pi)"
 ssh_opts=(-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR)
 
 # nix's ssh:// URLs need IPv6 addresses bracketed, with the link-local zone

@@ -35,7 +35,7 @@ build:
 # boot-breaking changes.
 # Deploy the current config to a running, already-flashed Pi (no reflash).
 deploy *args:
-    ./scripts/ethernet-deploy.sh {{args}}
+    nix run .#ethernet-deploy -- {{args}}
 
 # End-to-end tests against a real, already-flashed Pi on the ethernet cable.
 # No args runs everything, including the ~20-minute longevity soak; pass a
