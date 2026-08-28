@@ -16,7 +16,7 @@
 { pkgs, ... }:
 let
   envFile = "/boot/firmware/wifi.env";
-  conf = "/run/wpa_supplicant-wlan0.conf";
+  conf = "/run/wpa_supplicant.conf";
 in
 {
   # In-kernel regulatory database, so a WIFI_COUNTRY domain can be honoured.
@@ -28,7 +28,7 @@ in
   hardware.firmware = [ pkgs.raspberrypiWirelessFirmware ];
 
   systemd.services.wifi-client = {
-    description = "Wi-Fi client on wlan0 (credentials from ${envFile})";
+    description = "Wi-Fi client (credentials from ${envFile})";
     wantedBy = [ "multi-user.target" ];
     unitConfig.ConditionPathExists = envFile;
     # /boot/firmware is mounted on demand; without this ordering the condition
@@ -40,7 +40,7 @@ in
       coreutils
       gnused
       util-linux # rfkill
-      wpa_supplicant # wpa_passphrase + the daemon
+      wpa_supplicant
     ];
 
     # The env file is re-read on every (re)start, so fixing it in place and
@@ -52,6 +52,7 @@ in
     unitConfig.StartLimitIntervalSec = 0;
 
     script = ''
+      set -euo pipefail
       get() { sed -n "s/^$1=//p" ${envFile} | tr -d '\r' | head -n1; }
       unquote() { v="$1"; v="''${v%\"}"; v="''${v#\"}"; printf '%s' "$v"; }
       ssid="$(unquote "$(get WIFI_SSID)")"
@@ -62,30 +63,40 @@ in
       { [ "''${#pw}" -ge 8 ] && [ "''${#pw}" -le 63 ]; } \
         || { echo "wifi.env: WIFI_PASSWORD must be 8-63 chars (WPA2)" >&2; exit 1; }
 
-      # The generated config lives in /run (never persists) and holds only the
-      # derived PSK: wpa_passphrase's commented plaintext line is stripped.
+      # Plaintext passphrase on purpose: wpa_passphrase 2.11 aborts when fed
+      # via a pipe (tcgetattr on non-tty), and the conf is root-only in /run —
+      # the same secrecy as wifi.env on the FAT partition it came from.
       umask 077
       {
         echo "ctrl_interface=DIR=/run/wpa_supplicant GROUP=root"
         [ -z "$country" ] || echo "country=$country"
-        printf '%s\n' "$pw" | wpa_passphrase "$ssid" \
-          | sed -e '/^\s*#psk=/d' -e 's/^network={/network={\n\tscan_ssid=1/'
+        printf 'network={\n  scan_ssid=1\n  ssid="%s"\n  psk="%s"\n}\n' "$ssid" "$pw"
       } > ${conf}
 
       rfkill unblock wifi || true
-      # The device unit isn't a dependency: just wait for the radio to appear,
-      # and let Restart retry if it doesn't.
+      # The vendor kernel/udev renames the Pi 5 radio wlan0 -> wld0 (same
+      # scheme as end0 for ethernet), so don't hardcode a name: wait for
+      # whichever interface owns a phy80211, and let Restart retry if none
+      # appears.
+      wlan=""
       for _ in $(seq 30); do
-        [ -e /sys/class/net/wlan0 ] && break
+        for d in /sys/class/net/*; do
+          [ -e "$d/phy80211" ] && { wlan="$(basename "$d")"; break; }
+        done
+        [ -n "$wlan" ] && break
         sleep 1
       done
-      [ -e /sys/class/net/wlan0 ] || { echo "wlan0 never appeared" >&2; exit 1; }
+      [ -n "$wlan" ] || { echo "no wireless interface appeared" >&2; exit 1; }
 
-      exec wpa_supplicant -i wlan0 -c ${conf}
+      exec wpa_supplicant -i "$wlan" -c ${conf}
     '';
   };
 
   # Same trust as the ethernet LAN: phones on this Wi-Fi must reach the
-  # mailbox's mDNS + dynamic iroh QUIC ports to discover and sync.
-  networking.firewall.trustedInterfaces = [ "wlan0" ];
+  # mailbox's mDNS + dynamic iroh QUIC ports to discover and sync. Both names
+  # because the vendor udev renames wlan0 -> wld0.
+  networking.firewall.trustedInterfaces = [
+    "wlan0"
+    "wld0"
+  ];
 }
