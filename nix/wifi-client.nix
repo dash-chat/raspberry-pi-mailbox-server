@@ -22,10 +22,19 @@ in
   # In-kernel regulatory database, so a WIFI_COUNTRY domain can be honoured.
   hardware.wirelessRegulatoryDatabase = true;
 
+  # The CYW43455 firmware was purged with the old AP setup and the
+  # nixos-raspberrypi base doesn't ship it: without this, brcmfmac probes but
+  # wlan0 never appears.
+  hardware.firmware = [ pkgs.raspberrypiWirelessFirmware ];
+
   systemd.services.wifi-client = {
     description = "Wi-Fi client on wlan0 (credentials from ${envFile})";
     wantedBy = [ "multi-user.target" ];
     unitConfig.ConditionPathExists = envFile;
+    # /boot/firmware is mounted on demand; without this ordering the condition
+    # above is evaluated before the FAT partition is there and the unit is
+    # silently skipped at boot.
+    unitConfig.RequiresMountsFor = "/boot/firmware";
 
     path = with pkgs; [
       coreutils

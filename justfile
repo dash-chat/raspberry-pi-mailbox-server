@@ -34,6 +34,12 @@ build:
 deploy *args:
     nix run .#ethernet-deploy -- {{args}}
 
+# A freshly flashed Pi boots with a stale clock (no NTP on an offline LAN),
+# which can break TLS/iroh handshakes even when discovery works.
+# Push this machine's time to the Pi on the cable (writes the RTC when present).
+set-time:
+    nix run .#ethernet-set-time
+
 # End-to-end tests against a real, already-flashed Pi on the ethernet cable.
 # No args runs everything, including the ~20-minute longevity soak; pass a
 # subset to run less, e.g. `just e2e health blips blobs mdns`. Override the
