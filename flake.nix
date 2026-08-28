@@ -72,15 +72,6 @@
             runtimeInputs = runtimeInputs ++ [ detect-sd-card ];
             text = builtins.readFile ./scripts/flash-sd-image.sh;
           };
-          # Build a nixosConfiguration's sdImage and decompress it to a
-          # flashable .img; downstream flakes pass their own flake ref and
-          # config name. Drives the invoking host's own `nix` (daemon, flake
-          # config), so nix isn't a pinned input.
-          build-sd-image = pkgs.writeShellApplication {
-            name = "build-sd-image";
-            runtimeInputs = runtimeInputs ++ [ pkgs.zstd ];
-            text = builtins.readFile ./scripts/build-sd-image.sh;
-          };
           # Discover a Pi on a direct ethernet cable; prints its address.
           find-pi = pkgs.writeShellApplication {
             name = "find-pi";

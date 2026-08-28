@@ -28,9 +28,10 @@ The Pi's own radio never hosts an AP: earlier revisions did, on the Pi's
 brcmfmac chip, which was the main source of field failures (see git history for
 the watchdogs it needed). The radio can however *join* an existing Wi-Fi
 network as a plain client — e.g. a station on someone's home Wi-Fi with no
-ethernet uplink. Pass `just flash` a file with `WIFI_SSID=` / `WIFI_PASSWORD=`
-(optionally `WIFI_COUNTRY=`) and it lands on the FAT boot partition as
-`wifi.env`, which [`nix/wifi-client.nix`](nix/wifi-client.nix) reads at boot
+ethernet uplink. Put a file named `wifi.env` with `WIFI_SSID=` /
+`WIFI_PASSWORD=` (optionally `WIFI_COUNTRY=`) in the env folder passed to
+`just flash`; it lands on the FAT boot partition, where
+[`nix/wifi-client.nix`](nix/wifi-client.nix) reads it at boot
 (wpa_supplicant + the usual DHCP). No `wifi.env`, no Wi-Fi: the service has a
 `ConditionPathExists` on it, so ethernet-only stations are untouched. Since
 it's read at runtime, credentials can also be changed later by editing
@@ -83,8 +84,8 @@ Flash it (Raspberry Pi Imager → "Use custom", or with the just recipes):
 just build           # build + decompress to mailbox.img
 just devices         # list candidate SD-card devices
 just flash           # auto-detect the card and flash (asks before erasing)
-just flash "" my.env # same, plus install my.env as wifi.env (Wi-Fi client
-                     # credentials: WIFI_SSID= / WIFI_PASSWORD=, see above)
+just flash "" env/   # same, plus copy env/* to the boot partition — a
+                     # wifi.env in there makes the Pi a Wi-Fi client (above)
 ```
 
 or by hand: `zstd -d result/sd-image/*.img.zst -o mailbox.img`, then
@@ -204,13 +205,15 @@ outputs = { mailbox, ... }: {
 };
 ```
 
-All the just recipes here are thin wrappers over scripts packaged in this
-flake, parameterized on `[flake-ref] [nixos-config-name]` (defaulting to
+Building the image is just `nix build` on the config's `sdImage` attribute,
+and the flash/deploy/e2e scripts are packaged in this flake (deploy is
+parameterized on `[flake-ref] [nixos-config-name]`, defaulting to
 `. mailbox-pi`), so a downstream justfile is just:
 
 ```sh
-nix run mailbox#build-sd-image -- . my-station           # → my-station.img
-nix run mailbox#flash-sd-image -- my-station.img "" "" wifi.env
+nix build .#nixosConfigurations.my-station.config.system.build.sdImage
+zstd -d result/sd-image/*.img.zst -o my-station.img
+nix run mailbox#flash-sd-image -- my-station.img "" env/
 nix run mailbox#ethernet-deploy -- . my-station          # iterate over the cable
 nix run mailbox#e2e-test                                 # same e2e suite
 ```
