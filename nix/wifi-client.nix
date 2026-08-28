@@ -10,8 +10,8 @@
 #   WIFI_PASSWORD=at-least-8-chars     # WPA2-PSK, 8-63 chars
 #   WIFI_COUNTRY=ES                    # optional regulatory domain
 #
-# No wifi.env → the service doesn't start and the radio stays untouched, so
-# ethernet-only stations behave exactly as before. This is client mode only:
+# No wifi.env → the service exits immediately and the radio stays untouched,
+# so ethernet-only stations behave as before. This is client mode only:
 # hosting the AP stays on the mAP lite (see README), not the Pi's brcmfmac.
 { pkgs, ... }:
 let
@@ -27,14 +27,15 @@ in
   # wlan0 never appears.
   hardware.firmware = [ pkgs.raspberrypiWirelessFirmware ];
 
+  # No ConditionPathExists / RequiresMountsFor on purpose: /boot/firmware is
+  # an automount with a 1-minute idle timeout, so a systemd-side condition is
+  # evaluated by PID1, which never triggers automounts (unmet at every boot),
+  # and a Requires-style mount dependency propagates the idle unmount as a
+  # stop of this service. The script probes the file instead — a normal
+  # process access triggers the automount reliably.
   systemd.services.wifi-client = {
     description = "Wi-Fi client (credentials from ${envFile})";
     wantedBy = [ "multi-user.target" ];
-    unitConfig.ConditionPathExists = envFile;
-    # /boot/firmware is mounted on demand; without this ordering the condition
-    # above is evaluated before the FAT partition is there and the unit is
-    # silently skipped at boot.
-    unitConfig.RequiresMountsFor = "/boot/firmware";
 
     path = with pkgs; [
       coreutils
@@ -43,16 +44,22 @@ in
       wpa_supplicant
     ];
 
-    # The env file is re-read on every (re)start, so fixing it in place and
-    # restarting the unit (or rebooting) picks the new credentials up.
+    # on-failure, not always: a missing wifi.env exits 0 (ethernet-only
+    # station, no restart loop), while crashes and a malformed wifi.env keep
+    # retrying — the env file is re-read on every restart, so fixing it in
+    # place self-heals.
     serviceConfig = {
-      Restart = "always";
+      Restart = "on-failure";
       RestartSec = 10;
     };
     unitConfig.StartLimitIntervalSec = 0;
 
     script = ''
       set -euo pipefail
+      if [ ! -e ${envFile} ]; then
+        echo "no ${envFile} — Wi-Fi client disabled"
+        exit 0
+      fi
       get() { sed -n "s/^$1=//p" ${envFile} | tr -d '\r' | head -n1; }
       unquote() { v="$1"; v="''${v%\"}"; v="''${v#\"}"; printf '%s' "$v"; }
       ssid="$(unquote "$(get WIFI_SSID)")"
