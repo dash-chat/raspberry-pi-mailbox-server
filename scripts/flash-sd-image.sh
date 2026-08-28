@@ -2,20 +2,35 @@
 # Flash an SD-card image and optionally copy extra files onto its FAT boot
 # partition.
 #
-#   flash-sd-image.sh <image> [device] [env_dir]
+#   flash-sd-image.sh <image> [device] [env_dir] [wifi_env]
 #
 # Empty/omitted device -> auto-detect via detect-sd-card (the single
 # removable/USB disk that isn't the system disk). Empty/omitted env_dir ->
-# leave the boot partition as-is. Interactive: asks to retype the device
-# path before erasing it. Needs sudo for dd/mount.
+# leave the boot partition as-is. wifi_env is a file with WIFI_SSID= and
+# WIFI_PASSWORD= (optionally WIFI_COUNTRY=), copied to the boot partition as
+# wifi.env; the Pi's wifi-client service reads it at boot and joins that
+# network as a client (see nix/wifi-client.nix). Interactive: asks to retype
+# the device path before erasing it. Needs sudo for dd/mount.
 set -euo pipefail
 
-img="${1:?usage: flash-sd-image.sh <image> [device] [env_dir]}"
+img="${1:?usage: flash-sd-image.sh <image> [device] [env_dir] [wifi_env]}"
 dev="${2:-}"
 envdir="${3:-}"
+wifienv="${4:-}"
 
 [ -f "$img" ] || { echo "image '$img' not found" >&2; exit 1; }
 [ -z "$envdir" ] || [ -d "$envdir" ] || { echo "env dir '$envdir' does not exist" >&2; exit 1; }
+
+# Fail before erasing anything: the Pi only validates at boot, when it's too
+# late to notice a typo'd flash invocation.
+if [ -n "$wifienv" ]; then
+  [ -f "$wifienv" ] || { echo "wifi env file '$wifienv' does not exist" >&2; exit 1; }
+  ssid="$(sed -n 's/^WIFI_SSID=//p' "$wifienv" | tr -d '\r"' | head -n1)"
+  pw="$(sed -n 's/^WIFI_PASSWORD=//p' "$wifienv" | tr -d '\r"' | head -n1)"
+  [ -n "$ssid" ] || { echo "'$wifienv' must set WIFI_SSID=" >&2; exit 1; }
+  { [ "${#pw}" -ge 8 ] && [ "${#pw}" -le 63 ]; } \
+    || { echo "'$wifienv': WIFI_PASSWORD must be 8-63 chars (WPA2)" >&2; exit 1; }
+fi
 
 if [ -z "$dev" ]; then
   if command -v detect-sd-card >/dev/null 2>&1; then
@@ -58,8 +73,8 @@ done
 if [ -z "$boot" ]; then boot="${dev}1"; [ -b "$boot" ] || boot="${dev}p1"; fi
 [ -b "$boot" ] || { echo "could not find the FAT boot partition on $dev" >&2; exit 1; }
 
-if [ -z "$envdir" ]; then
-  echo ">> no env dir given — leaving the boot partition as-is"
+if [ -z "$envdir" ] && [ -z "$wifienv" ]; then
+  echo ">> no env dir or wifi env given — leaving the boot partition as-is"
   echo ">> done — $dev is ready to boot"
   exit 0
 fi
@@ -67,15 +82,21 @@ fi
 mnt="$(mktemp -d)"
 trap 'sudo umount "$mnt" 2>/dev/null || true; rmdir "$mnt" 2>/dev/null || true' EXIT
 sudo mount "$boot" "$mnt"
-shopt -s nullglob
-files=("$envdir"/*)
-if [ "${#files[@]}" -eq 0 ]; then
-  echo ">> note: '$envdir/' is empty — nothing to copy"
-else
-  echo ">> copying ${#files[@]} file(s) from $envdir/ to $boot"
-  for f in "${files[@]}"; do
-    [ -f "$f" ] && sudo cp -v "$f" "$mnt/"
-  done
-  sync
+if [ -n "$envdir" ]; then
+  shopt -s nullglob
+  files=("$envdir"/*)
+  if [ "${#files[@]}" -eq 0 ]; then
+    echo ">> note: '$envdir/' is empty — nothing to copy"
+  else
+    echo ">> copying ${#files[@]} file(s) from $envdir/ to $boot"
+    for f in "${files[@]}"; do
+      [ -f "$f" ] && sudo cp -v "$f" "$mnt/"
+    done
+  fi
 fi
+if [ -n "$wifienv" ]; then
+  echo ">> installing $wifienv as wifi.env (SSID '$ssid')"
+  sudo cp "$wifienv" "$mnt/wifi.env"
+fi
+sync
 echo ">> done — $dev is ready to boot"

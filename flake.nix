@@ -185,6 +185,7 @@
               ./nix/nixos-module.nix
               ./nix/appliance.nix
               ./nix/rpi.nix
+              ./nix/wifi-client.nix
             ];
 
           services.dashchat-mailbox.package =

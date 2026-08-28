@@ -45,9 +45,13 @@ devices:
 # With no device given, the SD card is auto-detected (the single removable/
 # USB disk that isn't the system disk; ambiguity aborts). Interactive: asks
 # to retype the device path before erasing.
-# Usage: just flash [/dev/sdX]   (list candidates with `just devices`)
-flash device="":
+# wifi_env is a file with WIFI_SSID= and WIFI_PASSWORD= (optional
+# WIFI_COUNTRY=), installed on the boot partition as wifi.env so the Pi joins
+# that Wi-Fi network as a client on boot (see nix/wifi-client.nix). Omit it
+# for ethernet-only stations.
+# Usage: just flash [/dev/sdX] [wifi.env]   (list candidates with `just devices`)
+flash device="" wifi_env="":
     #!/usr/bin/env bash
     set -euo pipefail
     [ -f "{{image}}" ] || { echo "image '{{image}}' not found — build it first (see README)"; exit 1; }
-    ./scripts/flash-sd-image.sh "{{image}}" "{{device}}" "{{env_dir}}"
+    ./scripts/flash-sd-image.sh "{{image}}" "{{device}}" "{{env_dir}}" "{{wifi_env}}"

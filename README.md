@@ -24,9 +24,19 @@ the Pi share one LAN, so mDNS discovery just works.
 Configuring the mAP lite itself (SSID, WPA2 password, bridging its ethernet
 port into the LAN) is out of scope for this repo.
 
-The Pi's own radio is unused: earlier revisions hosted the AP on the Pi's
+The Pi's own radio never hosts an AP: earlier revisions did, on the Pi's
 brcmfmac chip, which was the main source of field failures (see git history for
-the watchdogs it needed). The image is deliberately **minimal** — anything
+the watchdogs it needed). The radio can however *join* an existing Wi-Fi
+network as a plain client — e.g. a station on someone's home Wi-Fi with no
+ethernet uplink. Pass `just flash` a file with `WIFI_SSID=` / `WIFI_PASSWORD=`
+(optionally `WIFI_COUNTRY=`) and it lands on the FAT boot partition as
+`wifi.env`, which [`nix/wifi-client.nix`](nix/wifi-client.nix) reads at boot
+(wpa_supplicant + the usual DHCP). No `wifi.env`, no Wi-Fi: the service has a
+`ConditionPathExists` on it, so ethernet-only stations are untouched. Since
+it's read at runtime, credentials can also be changed later by editing
+`wifi.env` on the SD card (or over SSH) — no rebuild or reflash.
+
+The image is deliberately **minimal** — anything
 beyond the mailbox service, ethernet, and SSH must first prove necessary in the
 real-hardware e2e tests (`just e2e`, below) before it gets re-added.
 
@@ -73,6 +83,8 @@ Flash it (Raspberry Pi Imager → "Use custom", or with the just recipes):
 just build           # build + decompress to mailbox.img
 just devices         # list candidate SD-card devices
 just flash           # auto-detect the card and flash (asks before erasing)
+just flash "" my.env # same, plus install my.env as wifi.env (Wi-Fi client
+                     # credentials: WIFI_SSID= / WIFI_PASSWORD=, see above)
 ```
 
 or by hand: `zstd -d result/sd-image/*.img.zst -o mailbox.img`, then
@@ -173,10 +185,10 @@ tweaks in [`nix/rpi.nix`](nix/rpi.nix).
 
 ## Downstream repos: extend the image, reuse the tooling
 
-The whole appliance (board support + mailbox + appliance modules, with the
-dash-chat server package as an overridable default) is exported as
-`nixosModules.default`, so another repo can define its own configs on top
-and still build/flash/deploy them with this repo's scripts:
+The whole appliance (board support + mailbox + appliance + Wi-Fi client
+modules, with the dash-chat server package as an overridable default) is
+exported as `nixosModules.default`, so another repo can define its own
+configs on top and still build/flash/deploy them with this repo's scripts:
 
 ```nix
 # flake.nix (downstream)
@@ -198,7 +210,7 @@ flake, parameterized on `[flake-ref] [nixos-config-name]` (defaulting to
 
 ```sh
 nix run mailbox#build-sd-image -- . my-station           # → my-station.img
-nix run mailbox#flash-sd-image -- my-station.img
+nix run mailbox#flash-sd-image -- my-station.img "" "" wifi.env
 nix run mailbox#ethernet-deploy -- . my-station          # iterate over the cable
 nix run mailbox#e2e-test                                 # same e2e suite
 ```
