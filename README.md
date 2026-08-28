@@ -171,6 +171,44 @@ The service is a NixOS module with deliberately few knobs — see
 SSH, admin user) are in [`nix/appliance.nix`](nix/appliance.nix), Pi 5 board
 tweaks in [`nix/rpi.nix`](nix/rpi.nix).
 
+## Downstream repos: extend the image, reuse the tooling
+
+The whole appliance (board support + mailbox + appliance modules, with the
+dash-chat server package as an overridable default) is exported as
+`nixosModules.default`, so another repo can define its own configs on top
+and still build/flash/deploy them with this repo's scripts:
+
+```nix
+# flake.nix (downstream)
+inputs.mailbox.url = "github:dash-chat/raspberry-pi-mailbox-server";
+
+outputs = { mailbox, ... }: {
+  nixosConfigurations.my-station = mailbox.inputs.nixos-raspberrypi.lib.nixosSystem {
+    modules = [
+      mailbox.nixosModules.default
+      ./my-extras.nix   # extra services, overridden defaults, …
+    ];
+  };
+};
+```
+
+All the just recipes here are thin wrappers over scripts packaged in this
+flake, parameterized on `[flake-ref] [nixos-config-name]` (defaulting to
+`. mailbox-pi`), so a downstream justfile is just:
+
+```sh
+nix run mailbox#build-sd-image -- . my-station           # → my-station.img
+nix run mailbox#flash-sd-image -- my-station.img
+nix run mailbox#ethernet-deploy -- . my-station          # iterate over the cable
+nix run mailbox#e2e-test                                 # same e2e suite
+```
+
+(`mailbox` being a flake ref to this repo, e.g.
+`github:dash-chat/raspberry-pi-mailbox-server` or a local path.) The
+substituters in `nixConfig` cover the vendor kernel and the dash-chat server,
+so downstream builds don't compile them — accept them when prompted, or add
+them to the downstream flake's own `nixConfig`.
+
 ## Development
 
 The Rust lives in the dash-chat checkout, built within that workspace:

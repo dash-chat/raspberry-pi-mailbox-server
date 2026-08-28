@@ -14,18 +14,11 @@ _default:
 
 # The image is an aarch64 build, so on an x86_64 host this needs aarch64
 # emulation (see flake.nix). The build stays compressed in the store/cache; only
-# this local copy is expanded.
+# this local copy is expanded. Downstream flakes run the same script against
+# their own config: `nix run <this-flake>#build-sd-image -- . my-station`.
 # Build the SD image and decompress it to mailbox.img for flashing.
 build:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    nix build .#sdImage -L --accept-flake-config
-    zst="$(echo result/sd-image/*.img.zst)"
-    [ -f "$zst" ] || { echo "no *.img.zst under result/sd-image/ — did the build succeed?"; exit 1; }
-    echo ">> decompressing $zst -> {{image}}"
-    rm -f "{{image}}"
-    zstd -d "$zst" -o "{{image}}"
-    ls -lh "{{image}}"
+    nix run .#build-sd-image -- . mailbox-pi "{{image}}"
 
 # Substitutes the system toplevel from the binary cache (only the store paths
 # that changed get downloaded), copies only what the Pi is missing over the

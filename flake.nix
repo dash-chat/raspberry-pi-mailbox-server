@@ -72,6 +72,15 @@
             runtimeInputs = runtimeInputs ++ [ detect-sd-card ];
             text = builtins.readFile ./scripts/flash-sd-image.sh;
           };
+          # Build a nixosConfiguration's sdImage and decompress it to a
+          # flashable .img; downstream flakes pass their own flake ref and
+          # config name. Drives the invoking host's own `nix` (daemon, flake
+          # config), so nix isn't a pinned input.
+          build-sd-image = pkgs.writeShellApplication {
+            name = "build-sd-image";
+            runtimeInputs = runtimeInputs ++ [ pkgs.zstd ];
+            text = builtins.readFile ./scripts/build-sd-image.sh;
+          };
           # Discover a Pi on a direct ethernet cable; prints its address.
           find-pi = pkgs.writeShellApplication {
             name = "find-pi";
@@ -145,14 +154,23 @@
       }
       // mkScripts nixpkgs.legacyPackages.aarch64-linux;
 
-      # `nixos-raspberrypi.lib.nixosSystem` is a drop-in for
-      # `nixpkgs.lib.nixosSystem`: it pins `nixpkgs.hostPlatform = aarch64-linux`,
-      # injects the vendor kernel/firmware overlays, trusts the binary cache, and
-      # passes `nixos-raspberrypi` to the modules via specialArgs.
-      nixosConfigurations.mailbox-pi = nixos-raspberrypi.lib.nixosSystem {
-        modules = [
-          {
-            imports = with nixos-raspberrypi.nixosModules; [
+      # The whole appliance as one reusable module, so downstream flakes can
+      # define their own configs on top of it (extra services, overridden
+      # settings) and still build a flashable sdImage:
+      #
+      #   nixosConfigurations.my-station =
+      #     mailbox.inputs.nixos-raspberrypi.lib.nixosSystem {
+      #       modules = [ mailbox.nixosModules.default ./my-extras.nix ];
+      #     };
+      #
+      # Every mailbox option set in it is a (mk)Default, so downstream plain
+      # assignments win. Closes over this flake's own nixos-raspberrypi and
+      # dash-chat inputs; downstream should `follows` them to stay in sync.
+      nixosModules.default =
+        { lib, ... }:
+        {
+          imports =
+            (with nixos-raspberrypi.nixosModules; [
               # Pi 5 board support: vendor kernel + matched firmware/DTBs, and
               # the config.txt / generational bootloader plumbing.
               raspberry-pi-5.base
@@ -162,16 +180,23 @@
               # all-hardware profile (whose stray initrd modules break the
               # vendor kernel) and selects the generational bootloader for RPi5.
               sd-image
+            ])
+            ++ [
+              ./nix/nixos-module.nix
+              ./nix/appliance.nix
+              ./nix/rpi.nix
             ];
-          }
-          ./nix/nixos-module.nix
-          ./nix/appliance.nix
-          ./nix/rpi.nix
-          ({ ... }: {
-            services.dashchat-mailbox.package =
-              dash-chat.packages.aarch64-linux.mailbox-local-server;
-          })
-        ];
+
+          services.dashchat-mailbox.package =
+            lib.mkDefault dash-chat.packages.aarch64-linux.mailbox-local-server;
+        };
+
+      # `nixos-raspberrypi.lib.nixosSystem` is a drop-in for
+      # `nixpkgs.lib.nixosSystem`: it pins `nixpkgs.hostPlatform = aarch64-linux`,
+      # injects the vendor kernel/firmware overlays, trusts the binary cache, and
+      # passes `nixos-raspberrypi` to the modules via specialArgs.
+      nixosConfigurations.mailbox-pi = nixos-raspberrypi.lib.nixosSystem {
+        modules = [ self.nixosModules.default ];
       };
     };
 }
