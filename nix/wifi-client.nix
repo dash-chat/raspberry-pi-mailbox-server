@@ -7,7 +7,8 @@
 # are stripped if present):
 #
 #   WIFI_SSID=MyNetwork
-#   WIFI_PASSWORD=at-least-8-chars     # WPA2-PSK, 8-63 chars
+#   WIFI_PASSWORD=at-least-8-chars     # WPA2-PSK, 8-63 chars; empty/absent
+#                                      # means an open network (key_mgmt=NONE)
 #   WIFI_COUNTRY=ES                    # optional regulatory domain
 #
 # No wifi.env → the service exits immediately and the radio stays untouched,
@@ -67,8 +68,12 @@ in
       country="$(unquote "$(get WIFI_COUNTRY)")"
 
       [ -n "$ssid" ] || { echo "wifi.env: WIFI_SSID is missing/empty" >&2; exit 1; }
-      { [ "''${#pw}" -ge 8 ] && [ "''${#pw}" -le 63 ]; } \
-        || { echo "wifi.env: WIFI_PASSWORD must be 8-63 chars (WPA2)" >&2; exit 1; }
+      # An empty/absent WIFI_PASSWORD means an open network; anything else is
+      # WPA2-PSK and has to satisfy the passphrase length the standard imposes.
+      if [ -n "$pw" ]; then
+        { [ "''${#pw}" -ge 8 ] && [ "''${#pw}" -le 63 ]; } \
+          || { echo "wifi.env: WIFI_PASSWORD must be 8-63 chars (WPA2), or empty for an open network" >&2; exit 1; }
+      fi
 
       # Plaintext passphrase on purpose: wpa_passphrase 2.11 aborts when fed
       # via a pipe (tcgetattr on non-tty), and the conf is root-only in /run —
@@ -77,7 +82,11 @@ in
       {
         echo "ctrl_interface=DIR=/run/wpa_supplicant GROUP=root"
         [ -z "$country" ] || echo "country=$country"
-        printf 'network={\n  scan_ssid=1\n  ssid="%s"\n  psk="%s"\n}\n' "$ssid" "$pw"
+        if [ -n "$pw" ]; then
+          printf 'network={\n  scan_ssid=1\n  ssid="%s"\n  psk="%s"\n}\n' "$ssid" "$pw"
+        else
+          printf 'network={\n  scan_ssid=1\n  ssid="%s"\n  key_mgmt=NONE\n}\n' "$ssid"
+        fi
       } > ${conf}
 
       rfkill unblock wifi || true

@@ -30,7 +30,9 @@ the watchdogs it needed). The radio can however *join* an existing Wi-Fi
 network as a plain client — e.g. a station on someone's home Wi-Fi with no
 ethernet uplink. Put a file named `wifi.env` with `WIFI_SSID=` /
 `WIFI_PASSWORD=` (optionally `WIFI_COUNTRY=`) in the env folder passed to
-`just flash`; it lands on the FAT boot partition, where
+`just flash` — an empty `WIFI_PASSWORD=` joins an open network, which is what
+the checked-in [`env/wifi.env`](env/wifi.env) does (`offlinewifi`, no
+password). It lands on the FAT boot partition, where
 [`nix/wifi-client.nix`](nix/wifi-client.nix) reads it at boot
 (wpa_supplicant + the usual DHCP). No `wifi.env`, no Wi-Fi: the service has a
 `ConditionPathExists` on it, so ethernet-only stations are untouched. Since

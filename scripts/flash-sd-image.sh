@@ -8,7 +8,8 @@
 # removable/USB disk that isn't the system disk). Empty/omitted env_dir ->
 # leave the boot partition as-is. A file named wifi.env in env_dir
 # (WIFI_SSID= and WIFI_PASSWORD=, optionally WIFI_COUNTRY=) makes the Pi's
-# wifi-client service join that network as a client on boot (see
+# wifi-client service join that network as a client on boot; an empty
+# WIFI_PASSWORD= means an open network (see
 # nix/wifi-client.nix). Interactive: asks to retype the device path before
 # erasing it. Needs sudo for dd/mount.
 set -euo pipefail
@@ -27,9 +28,13 @@ if [ -n "$envdir" ] && [ -f "$envdir/wifi.env" ]; then
   ssid="$(sed -n 's/^WIFI_SSID=//p' "$wifienv" | tr -d '\r"' | head -n1)"
   pw="$(sed -n 's/^WIFI_PASSWORD=//p' "$wifienv" | tr -d '\r"' | head -n1)"
   [ -n "$ssid" ] || { echo "'$wifienv' must set WIFI_SSID=" >&2; exit 1; }
-  { [ "${#pw}" -ge 8 ] && [ "${#pw}" -le 63 ]; } \
-    || { echo "'$wifienv': WIFI_PASSWORD must be 8-63 chars (WPA2)" >&2; exit 1; }
-  echo ">> wifi.env found — the Pi will join Wi-Fi network '$ssid' on boot"
+  if [ -n "$pw" ]; then
+    { [ "${#pw}" -ge 8 ] && [ "${#pw}" -le 63 ]; } \
+      || { echo "'$wifienv': WIFI_PASSWORD must be 8-63 chars (WPA2), or empty for an open network" >&2; exit 1; }
+    echo ">> wifi.env found — the Pi will join Wi-Fi network '$ssid' on boot"
+  else
+    echo ">> wifi.env found — the Pi will join the open Wi-Fi network '$ssid' on boot"
+  fi
 fi
 
 if [ -z "$dev" ]; then

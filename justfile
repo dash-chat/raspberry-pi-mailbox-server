@@ -56,8 +56,9 @@ devices:
 # removable/USB disk that isn't the system disk; ambiguity aborts).
 # Interactive: asks to retype the device path before erasing.
 # A file named wifi.env in env_dir (WIFI_SSID= and WIFI_PASSWORD=, optional
-# WIFI_COUNTRY=) makes the Pi join that Wi-Fi network as a client on boot
-# (see nix/wifi-client.nix). Omit env_dir for ethernet-only stations.
+# WIFI_COUNTRY=) makes the Pi join that Wi-Fi network as a client on boot; an
+# empty WIFI_PASSWORD= means an open network (see nix/wifi-client.nix).
+# Omit env_dir for ethernet-only stations.
 # Usage: just flash [/dev/sdX] [env-dir]   (list candidates with `just devices`)
 flash device="" env_dir="":
     #!/usr/bin/env bash
