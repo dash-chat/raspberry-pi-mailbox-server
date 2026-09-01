@@ -45,11 +45,11 @@ real-hardware e2e tests (`just e2e`, below) before it gets re-added.
 
 ## How it works
 
-This repo is **just the NixOS image**. The Rust lives in a **dash-chat branch**
-(`develop`, pinned as the `dash-chat` flake input); the image bakes in
+This repo is **just the NixOS image**. The Rust lives in **dash-chat**
+(pinned as the `dash-chat` flake input at tag `v0.19.25`); the image bakes in
 its prebuilt `packages.mailbox-local-server` with no build setup of its own.
 
-| Concern | Where (in the dash-chat branch) |
+| Concern | Where (in the dash-chat repo) |
 | --- | --- |
 | HTTP server, redb store, identity, iroh blob sync | `crates/mailbox-server` |
 | mDNS-announced standalone binary (`mailbox-local-server`) | `crates/mailbox-local-server` |
@@ -231,13 +231,13 @@ them to the downstream flake's own `nixConfig`.
 The Rust lives in the dash-chat checkout, built within that workspace:
 
 ```sh
-cd ../dash-chat6   # the dash-chat branch (develop)
+cd ../dash-chat6   # the dash-chat checkout
 cargo run -p mailbox-local-server -- --db-path ./mailbox.redb --addr '[::]:3000'
 ```
 
-This repo pins that branch via the `dash-chat` flake input in
-[`flake.nix`](flake.nix). After changing the Rust, push the branch and run
-`nix flake update dash-chat` here.
+This repo pins a released dash-chat tag via the `dash-chat` flake input in
+[`flake.nix`](flake.nix). After changing the Rust, cut/push a tag, bump the
+`v<version>` in that input, and run `nix flake update dash-chat` here.
 
 ## License
 

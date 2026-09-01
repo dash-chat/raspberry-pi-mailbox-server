@@ -61,16 +61,16 @@
         "tauri-plugin-holochain": "tauri-plugin-holochain"
       },
       "locked": {
-        "lastModified": 1787858774,
-        "narHash": "sha256-2fnUPkw/d2QYYv0huh1mIBnwhLFgXHoG2z9sBUKwVS4=",
+        "lastModified": 1788253276,
+        "narHash": "sha256-IYnxfqVOI+45/qmAdK5DTpQjiSH55y261wGw7uUENX0=",
         "owner": "dash-chat",
         "repo": "dash-chat",
-        "rev": "eba61e3d1d7cde6c55dd804f525acc2496ebd52c",
+        "rev": "486300cc0b821c12b60b0f37e92e350c3ca42dea",
         "type": "github"
       },
       "original": {
         "owner": "dash-chat",
-        "ref": "develop",
+        "ref": "v0.19.25",
         "repo": "dash-chat",
         "type": "github"
       }
